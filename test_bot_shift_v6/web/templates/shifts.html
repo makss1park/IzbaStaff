@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}Смены{% endblock %}
+{% block content %}
+<div class="header-row"><h1>Смены</h1><a class="button secondary" href="/web/shifts?export=xlsx&employee={{ filters.employee }}&employee_id={{ filters.employee_id }}&employee_label={{ filters.employee_label }}&status={{ filters.status }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}">Экспорт в Excel</a></div>
+<form class="filters auto-submit-filters" method="get">
+  {% include '_employee_dropdown.html' %}
+  <select name="status"><option value="all" {% if filters.status == 'all' %}selected{% endif %}>Все</option><option value="open" {% if filters.status == 'open' %}selected{% endif %}>Открытые</option><option value="closed" {% if filters.status == 'closed' %}selected{% endif %}>Закрытые</option></select>
+  <input type="date" name="date_from" value="{{ filters.date_from }}">
+  <input type="date" name="date_to" value="{{ filters.date_to }}">
+</form>
+<div class="card"><table><thead><tr><th>Сотрудник</th><th>Открыта</th><th>Закрыта</th><th>Часы</th><th>Опоздание</th><th>Сумма</th><th></th></tr></thead><tbody>
+{% for item in data['items'] %}<tr><td>{{ item.full_name or item.username or '—' }}</td><td>{{ item.opened_at }}</td><td>{{ item.closed_at or '—' }}</td><td>{{ item.duration_hours }}</td><td>{{ item.late_minutes }}</td><td>{{ item.salary_amount }}</td><td><a href="/web/shifts/{{ item.id }}">Открыть</a></td></tr>{% else %}<tr><td colspan="7" class="muted">Ничего не найдено</td></tr>{% endfor %}
+</tbody></table></div>
+{% include '_pagination.html' %}
+{% endblock %}

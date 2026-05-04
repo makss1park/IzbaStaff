@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% block title %}Смена{% endblock %}
+{% block content %}
+{% if shift %}
+<div class="header-row"><h1>{{ shift.full_name or shift.username or 'Смена' }}</h1><div class="actions-row"><a class="button secondary" href="/web/shifts">Назад</a></div></div>
+{% if updated %}<div class="notice">Изменения по смене сохранены.</div>{% endif %}
+<div class="cards-grid three-col">
+  <div class="card stat"><div class="label">ID смены</div><div class="value small">{{ shift.id }}</div></div>
+  <div class="card stat"><div class="label">Часы</div><div class="value">{{ shift.duration_hours }}</div></div>
+  <div class="card stat"><div class="label">Сумма</div><div class="value">{{ shift.salary_amount }}</div></div>
+</div>
+<div class="cards-grid two-col">
+  <div class="card">
+    <h3>Редактирование смены</h3>
+    <form class="stack-form compact" method="post" action="/web/shifts/{{ shift.id }}/update">
+      <label>Открыта
+        <input type="datetime-local" name="opened_at" value="{{ shift.opened_at.strftime('%Y-%m-%dT%H:%M') if shift.opened_at else '' }}" required>
+      </label>
+      <label>Закрыта
+        <input type="datetime-local" name="closed_at" value="{{ shift.closed_at.strftime('%Y-%m-%dT%H:%M') if shift.closed_at else '' }}">
+      </label>
+      <label>Опоздание, секунд
+        <input type="number" min="0" step="1" name="late_seconds" value="{{ shift.late_seconds or 0 }}">
+      </label>
+      <label>ID зарплатного периода
+        <input type="number" min="1" step="1" name="payroll_period_id" value="{{ shift.payroll_period_id }}" required>
+      </label>
+      <label class="checkbox"><input type="checkbox" name="is_scheduled" value="1" {% if shift.is_scheduled %}checked{% endif %}> По графику</label>
+      <button type="submit">Сохранить</button>
+    </form>
+  </div>
+  <div class="card">
+    <h3>Связанный зарплатный период</h3>
+    <table>
+      <tbody>
+        <tr><th>ID периода</th><td><a href="/web/payroll/{{ shift.payroll_period_id }}">{{ shift.payroll_period_id }}</a></td></tr>
+        <tr><th>Начало периода</th><td>{{ shift.period_start_at }}</td></tr>
+        <tr><th>Конец периода</th><td>{{ shift.period_end_at or 'Открыт' }}</td></tr>
+        <tr><th>Статус</th><td>{% if shift.period_is_closed %}Закрыт{% else %}Открыт{% endif %}</td></tr>
+        <tr><th>Открыта</th><td>{{ shift.opened_at }}</td></tr>
+        <tr><th>Закрыта</th><td>{{ shift.closed_at or '—' }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}<div class="card">Смена не найдена</div>{% endif %}
+{% endblock %}

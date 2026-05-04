@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Вход | Shift CRM</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+</head>
+<body class="login-body">
+  <form class="login-card" method="post" action="/web/login">
+    <h1>Вход в Shift CRM</h1>
+    <p class="muted">Административная панель</p>
+    {% if error %}<div class="alert">{{ error }}</div>{% endif %}
+    <label>Логин<input type="text" name="username" required></label>
+    <label>Пароль<input type="password" name="password" required></label>
+    <button type="submit">Войти</button>
+  </form>
+</body>
+</html>

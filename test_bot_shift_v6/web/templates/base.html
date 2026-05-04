@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Shift CRM{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">Shift CRM</div>
+    <nav>
+      <a href="/web">Дашборд</a>
+      <a href="/web/employees">Сотрудники</a>
+      <a href="/web/reports">Отчеты</a>
+      <a href="/web/catalogs">Каталоги</a>
+      <a href="/web/shifts">Смены</a>
+      <a href="/web/payroll">Зарплатные периоды</a>
+      <a href="/web/settings">Настройки</a>
+      {% if current_admin and current_admin.role == 'superadmin' %}
+      <a href="/web/admins">Веб-админы</a>
+      {% endif %}
+    </nav>
+    <div class="sidebar-footer">
+      {% if current_admin %}
+      <div>{{ current_admin.username }}</div>
+      <div class="muted">{{ current_admin.role }}</div>
+      <a href="/web/logout">Выйти</a>
+      {% endif %}
+    </div>
+  </aside>
+  <main class="content">{% block content %}{% endblock %}</main>
+</div>
+<script>
+(function () {
+  const forms = document.querySelectorAll('.auto-submit-filters');
+  forms.forEach((form) => {
+    let timer = null;
+    let lastSerialized = new URLSearchParams(new FormData(form)).toString();
+
+    const submitForm = () => {
+      const serialized = new URLSearchParams(new FormData(form)).toString();
+      if (serialized === lastSerialized) return;
+      lastSerialized = serialized;
+      form.requestSubmit();
+    };
+
+    form.querySelectorAll('select, input[type="checkbox"], input[type="radio"]').forEach((field) => {
+      field.addEventListener('change', submitForm);
+    });
+
+    form.querySelectorAll('input[type="date"]').forEach((field) => {
+      const submitDateField = () => {
+        if (!field.value || /^\d{4}-\d{2}-\d{2}$/.test(field.value)) {
+          submitForm();
+        }
+      };
+      field.addEventListener('change', submitDateField);
+      field.addEventListener('blur', submitDateField);
+      field.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          submitDateField();
+        }
+      });
+    });
+
+    form.querySelectorAll('input[type="text"], input[type="search"], input:not([type])').forEach((field) => {
+      field.addEventListener('input', () => {
+        clearTimeout(timer);
+        timer = setTimeout(submitForm, 350);
+      });
+      field.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          clearTimeout(timer);
+          submitForm();
+        }
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>

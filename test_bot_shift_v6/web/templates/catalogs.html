@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}Каталоги{% endblock %}
+{% block content %}
+<div class="header-row">
+  <h1>Каталоги</h1>
+  <div class="actions-row">
+    <a class="button secondary" href="/web/catalogs?export=xlsx&query={{ filters.query }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}">Экспорт в Excel</a>
+  </div>
+</div>
+<form class="filters auto-submit-filters" method="get">
+  <input type="search" name="query" placeholder="Поиск по названию, тегам, ФИО" value="{{ filters.query }}">
+  <input type="date" name="date_from" value="{{ filters.date_from }}">
+  <input type="date" name="date_to" value="{{ filters.date_to }}">
+</form>
+<div class="cards-grid report-grid">
+  {% for item in data['items'] %}
+  <div class="card report-card">
+    {% if item.preview_image_url %}
+      <img src="{{ item.preview_image_url }}" alt="catalog preview" loading="lazy">
+    {% else %}
+      <div class="placeholder">Нет превью</div>
+    {% endif %}
+    <div class="report-meta"><strong>{{ item.title or '—' }}</strong><span>{{ item.created_at }}</span></div>
+    <p><strong>Создатель:</strong> {{ item.full_name or item.username or '—' }}</p>
+    <p><strong>Теги:</strong> {{ item.tags_text or '—' }}</p>
+    <p><strong>Фото:</strong> {{ item.photos_count or 0 }}</p>
+  </div>
+  {% else %}
+  <div class="card">Ничего не найдено</div>
+  {% endfor %}
+</div>
+{% include '_pagination.html' %}
+{% endblock %}

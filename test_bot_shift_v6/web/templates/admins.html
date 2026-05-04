@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Веб-админы{% endblock %}
+{% block content %}
+<div class="header-row"><h1>Веб-админы</h1></div>
+<div class="cards-grid two-col">
+  <div class="card">
+    <h3>Добавить администратора</h3>
+    <form method="post" action="/web/admins/create" class="stack-form">
+      <label>Логин<input type="text" name="username" required></label>
+      <label>Пароль<input type="password" name="password" required></label>
+      <label>Роль<select name="role"><option value="manager">manager</option><option value="superadmin">superadmin</option></select></label>
+      <button type="submit">Создать</button>
+    </form>
+  </div>
+  <div class="card"><h3>Список</h3>
+    <table><thead><tr><th>Логин</th><th>Роль</th><th>Статус</th><th></th></tr></thead><tbody>
+    {% for item in data['items'] %}<tr><td>{{ item.username }}</td><td>{{ item.role }}</td><td>{{ 'Активен' if item.is_active else 'Отключен' }}</td><td><form method="post" action="/web/admins/{{ item.id }}/toggle"><button type="submit">Переключить</button></form></td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+</div>
+{% include '_pagination.html' %}
+{% endblock %}

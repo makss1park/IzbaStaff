@@ -1,0 +1,14 @@
+[Unit]
+Description=Shift Bot Web Admin
+After=network.target
+
+[Service]
+User=www-data
+WorkingDirectory=/opt/shift_bot
+EnvironmentFile=/opt/shift_bot/.env
+ExecStart=/opt/shift_bot/.venv/bin/uvicorn web.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

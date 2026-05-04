@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Каталог{% endblock %}
+{% block content %}
+<section class="card">
+  {% if item %}
+    <h1>{{ item.title }}</h1>
+    <div class="muted">{{ item.created_at.strftime('%d.%m.%Y %H:%M') if item.created_at else '' }}</div>
+    <p>Создатель: {{ item.full_name or item.username or item.created_by_user_id }}</p>
+    <p>Теги: {{ item.tags or '—' }}</p>
+    <p>Фото: {{ item.photos_count or 0 }}</p>
+    <p><a href="/web/catalogs">← Назад к каталогам</a></p>
+  {% else %}
+    <h1>Каталог не найден</h1>
+  {% endif %}
+</section>
+<section class="grid two-columns">
+  {% for photo in photos %}
+  <article class="card">
+    {% if photo.photo_public_url %}
+      <img src="{{ photo.photo_public_url }}" alt="catalog photo" style="width:100%;max-height:320px;object-fit:cover;border-radius:12px;">
+    {% else %}
+      <div class="muted">Фото недоступно</div>
+    {% endif %}
+  </article>
+  {% endfor %}
+</section>
+{% endblock %}

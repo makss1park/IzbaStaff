@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Сотрудник{% endblock %}
+{% block content %}
+<div class="header-row"><h1>{{ employee.full_name or 'Сотрудник' }}</h1><a class="button secondary" href="/web/employees">Назад</a></div>
+<div class="cards-grid two-col">
+  <div class="card">
+    <h3>Основные данные</h3>
+    <form method="post" action="/web/employees/{{ employee.id }}/edit" class="stack-form">
+      <label>ФИО<input type="text" name="full_name" value="{{ employee.full_name or '' }}"></label>
+      <label>Телефон<input type="text" name="phone" value="{{ employee.phone or '' }}"></label>
+      <label>Ставка<input type="number" step="0.01" name="hourly_rate" value="{{ employee.hourly_rate or 0 }}"></label>
+      <label class="checkbox"><input type="checkbox" name="is_active" value="1" {% if employee.is_active %}checked{% endif %}> Активен</label>
+      <button type="submit">Сохранить</button>
+    </form>
+  </div>
+  <div class="card">
+    <h3>График</h3>
+    <form method="post" action="/web/employees/{{ employee.id }}/schedule" class="stack-form">
+      <label>Дни недели<input type="text" name="weekdays_json" value="{{ schedule.weekdays_json if schedule else '' }}"></label>
+      <label>Начало<input type="text" name="start_time" value="{{ schedule.start_time if schedule else '09:00' }}"></label>
+      <label>Конец<input type="text" name="end_time" value="{{ schedule.end_time if schedule else '18:00' }}"></label>
+      <button type="submit">Сохранить график</button>
+    </form>
+  </div>
+</div>
+<div class="card"><h3>Последние зарплатные периоды</h3>
+<table><thead><tr><th>Начало</th><th>Конец</th><th>Часы</th><th>Начислено</th><th>Штрафы</th></tr></thead><tbody>
+{% for p in periods %}<tr><td>{{ p.start_at }}</td><td>{{ p.end_at or '—' }}</td><td>{{ p.hours_worked }}</td><td>{{ p.salary_amount }}</td><td>{{ p.fines_amount }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Период{% endblock %}
+{% block content %}
+{% if period %}
+<div class="header-row"><h1>{{ period.full_name or period.username or 'Период' }}</h1><div class="actions-row"><a class="button secondary" href="/web/payroll/{{ period.id }}?export=xlsx">Экспорт в Excel</a><a class="button secondary" href="/web/payroll">Назад</a></div></div>
+{% if updated %}<div class="notice">Изменения по зарплатному периоду сохранены.</div>{% endif %}
+<div class="cards-grid three-col">
+  <div class="card stat"><div class="label">Начало</div><div class="value small">{{ period.start_at }}</div></div>
+  <div class="card stat"><div class="label">Конец</div><div class="value small">{{ period.end_at or 'Открыт' }}</div></div>
+  <div class="card stat"><div class="label">Ставка</div><div class="value">{{ period.hourly_rate|round|int }}</div></div>
+</div>
+<div class="cards-grid two-col">
+  <div class="card">
+    <h3>Редактирование зарплатного периода</h3>
+    <form class="stack-form compact" method="post" action="/web/payroll/{{ period.id }}/update">
+      <label>Начало
+        <input type="datetime-local" name="start_at" value="{{ period.start_at.strftime('%Y-%m-%dT%H:%M') if period.start_at else '' }}" required>
+      </label>
+      <label>Конец
+        <input type="datetime-local" name="end_at" value="{{ period.end_at.strftime('%Y-%m-%dT%H:%M') if period.end_at else '' }}">
+      </label>
+      <label class="checkbox"><input type="checkbox" name="is_closed" value="1" {% if period.is_closed %}checked{% endif %}> Период закрыт</label>
+      <button type="submit">Сохранить</button>
+    </form>
+  </div>
+  <div class="card"><h3>Штрафы</h3><table><thead><tr><th>Дата</th><th>Причина</th><th>Сумма</th></tr></thead><tbody>{% for f in fines %}<tr><td>{{ f.created_at }}</td><td>{{ f.reason }}</td><td>{{ f.amount_int or 0 }}</td></tr>{% else %}<tr><td colspan="3" class="muted">Штрафов нет</td></tr>{% endfor %}</tbody></table></div>
+</div>
+<div class="cards-grid two-col">
+  <div class="card"><h3>Начисления по сменам</h3><canvas id="periodChart"></canvas></div>
+  <div class="card"><h3>Смены периода</h3><table><thead><tr><th>Открыта</th><th>Закрыта</th><th>Часы</th><th>Опоздание, мин</th><th>Сумма</th><th></th></tr></thead><tbody>{% for s in shifts %}<tr><td>{{ s.opened_at }}</td><td>{{ s.closed_at or '—' }}</td><td>{{ s.duration_hours }}</td><td>{{ s.late_minutes }}</td><td>{{ s.salary_amount }}</td><td><a href="/web/shifts/{{ s.id }}">Открыть</a></td></tr>{% else %}<tr><td colspan="6" class="muted">Смены отсутствуют</td></tr>{% endfor %}</tbody></table></div>
+</div>
+<script>
+const chartData = {{ chart_json|safe }};
+new Chart(document.getElementById('periodChart'), {type:'bar', data:{labels: chartData.map(x=>x.label), datasets:[{label:'Начисление', data: chartData.map(x=>x.value)}]}});
+</script>
+{% else %}<div class="card">Период не найден</div>{% endif %}
+{% endblock %}

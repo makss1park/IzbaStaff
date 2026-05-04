@@ -1,0 +1,15 @@
+[Unit]
+Description=Shift Management Telegram Bot
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/shift_bot_project
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/shift_bot_project/.venv/bin/python /opt/shift_bot_project/run.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

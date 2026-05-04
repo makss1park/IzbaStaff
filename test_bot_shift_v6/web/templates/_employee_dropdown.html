@@ -1,0 +1,8 @@
+<div class="filter-field employee-dropdown-field">
+  <select name="employee_id" class="employee-select" onchange="this.form.submit()">
+    <option value="" {% if not filters.employee_id %}selected{% endif %}>Все сотрудники</option>
+    {% for employee in employee_options %}
+    <option value="{{ employee.id }}" {% if filters.employee_id|string == employee.id|string %}selected{% endif %}>{{ employee.label }}</option>
+    {% endfor %}
+  </select>
+</div>

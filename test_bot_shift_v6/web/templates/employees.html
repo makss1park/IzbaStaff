@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}Сотрудники{% endblock %}
+{% block content %}
+<div class="header-row"><h1>Сотрудники</h1><a class="button secondary" href="/web/employees?export=xlsx&q={{ filters.q }}&status={{ filters.status }}">Экспорт в Excel</a></div>
+<form class="filters auto-submit-filters" method="get">
+  <input type="text" name="q" placeholder="Имя, username, телефон" value="{{ filters.q }}">
+  <select name="status"><option value="all" {% if filters.status == 'all' %}selected{% endif %}>Все</option><option value="active" {% if filters.status == 'active' %}selected{% endif %}>Активные</option><option value="inactive" {% if filters.status == 'inactive' %}selected{% endif %}>Неактивные</option></select>
+</form>
+<div class="card"><table><thead><tr><th>ID</th><th>ФИО</th><th>Телефон</th><th>Роль</th><th>Ставка</th><th>Активность</th><th></th></tr></thead><tbody>
+{% for item in data['items'] %}<tr><td>{{ item.id }}</td><td>{{ item.full_name or '—' }}</td><td>{{ item.phone or '—' }}</td><td>{{ item.role }}</td><td>{{ item.hourly_rate|round|int }}</td><td>{{ 'Да' if item.is_active else 'Нет' }}</td><td><a href="/web/employees/{{ item.id }}">Открыть</a></td></tr>{% endfor %}
+</tbody></table></div>
+{% include '_pagination.html' %}
+{% endblock %}

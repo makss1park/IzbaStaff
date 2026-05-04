@@ -1,0 +1,11 @@
+{% if data.pages > 1 %}
+<div class="pagination">
+  {% for p in range(1, data.pages + 1) %}
+    {% if p == data.page %}
+      <span class="page active">{{ p }}</span>
+    {% else %}
+      <a class="page" href="?page={{ p }}{% for key, value in filters.items() %}{% if value %}&{{ key }}={{ value }}{% endif %}{% endfor %}">{{ p }}</a>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endif %}

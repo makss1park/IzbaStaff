@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Зарплатные периоды{% endblock %}
+{% block content %}
+<div class="header-row"><h1>Зарплатные периоды</h1><a class="button secondary" href="/web/payroll?export=xlsx&employee={{ filters.employee }}&employee_id={{ filters.employee_id }}&employee_label={{ filters.employee_label }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}&status={{ filters.status }}">Экспорт в Excel</a></div>
+<form class="filters auto-submit-filters" method="get">
+  {% include '_employee_dropdown.html' %}
+  <select name="status"><option value="all" {% if filters.status == 'all' %}selected{% endif %}>Все</option><option value="open" {% if filters.status == 'open' %}selected{% endif %}>Только открытые</option><option value="closed" {% if filters.status == 'closed' %}selected{% endif %}>Все закрытые</option><option value="previous_closed" {% if filters.status == 'previous_closed' %}selected{% endif %}>Предыдущий закрытый от открытого</option></select>
+  <input type="date" name="date_from" value="{{ filters.date_from }}">
+  <input type="date" name="date_to" value="{{ filters.date_to }}">
+</form>
+<div class="cards-grid five-col">
+  <div class="card stat"><div class="label">Штрафы</div><div class="value">{{ summary.total_fines_amount or 0 }}</div></div>
+  <div class="card stat"><div class="label">К выплате</div><div class="value">{{ summary.total_net_amount or 0 }}</div></div>
+  <div class="card stat"><div class="label">Часы</div><div class="value">{{ summary.total_hours or 0 }}</div></div>
+  <div class="card stat"><div class="label">Начислено</div><div class="value">{{ summary.total_salary_amount or 0 }}</div></div>
+  <div class="card stat"><div class="label">Смены</div><div class="value">{{ summary.total_shifts or 0 }}</div></div>
+</div>
+<div class="card"><table><thead><tr><th>Сотрудник</th><th>Период</th><th>Смены</th><th>Часы</th><th>Начислено</th><th>Штрафы</th><th>К выплате</th><th></th></tr></thead><tbody>
+{% for item in data['items'] %}<tr><td>{{ item.full_name or item.username or '—' }}</td><td>{{ item.start_at }} — {{ item.end_at or 'открыт' }}</td><td>{{ item.shift_count }}</td><td>{{ item.hours_worked }}</td><td>{{ item.salary_amount }}</td><td>{{ item.fines_amount }}</td><td>{{ item.net_amount }}</td><td><a href="/web/payroll/{{ item.id }}">Открыть</a></td></tr>{% else %}<tr><td colspan="8" class="muted">Ничего не найдено</td></tr>{% endfor %}
+</tbody></table></div>
+{% include '_pagination.html' %}
+{% endblock %}
