@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from urllib.parse import urlparse
 
 from aiogram import Bot
 from fastapi import APIRouter, Query, Request
@@ -19,14 +20,32 @@ router = APIRouter(prefix='/web/reports', tags=['reports'])
 PAGE_SIZE = 12
 
 
+def _build_report_web_url(filename: str) -> str:
+    prefix = web_settings.reports_url_prefix.rstrip('/') or '/reports'
+    base = (web_settings.reports_public_base_url or '').rstrip('/')
+    relative = f"{prefix}/{filename}"
+    if not base:
+        return relative
+
+    parsed = urlparse(base)
+    base_path = parsed.path.rstrip('/')
+    if base_path == prefix:
+        return f"{base}/{filename}"
+    return f"{base}{relative}"
+
+
 def _resolve_report_image_url(item: dict) -> str | None:
-    if item.get('photo_public_url'):
-        return item['photo_public_url']
+    # Prefer rebuilding the URL from local_path: this protects the admin page
+    # from old/incorrect DB values like /reports/reports/<file>.jpg.
     local_path = item.get('photo_local_path')
-    if not local_path:
-        return None
-    file_name = Path(local_path).name
-    return f"{web_settings.reports_url_prefix.rstrip('/')}/{file_name}"
+    if local_path:
+        return _build_report_web_url(Path(local_path).name)
+
+    public_url = item.get('photo_public_url')
+    if public_url:
+        return public_url
+
+    return None
 
 
 @router.get('')
