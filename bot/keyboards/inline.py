@@ -179,18 +179,6 @@ def settings_menu() -> InlineKeyboardMarkup:
                     callback_data="settings:reports_days",
                 )
             ],
-            [
-                InlineKeyboardButton(
-                    text=texts.BTN_SET_REPORT_RECIPIENTS,
-                    callback_data="settings:new_report_recipients",
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    text=texts.BTN_SET_SHIFT_EVENT_RECIPIENTS,
-                    callback_data="settings:shift_event_recipients",
-                )
-            ]
         ]
     )
 

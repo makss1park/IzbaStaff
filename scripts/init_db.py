@@ -105,18 +105,6 @@ SCHEMA = [
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """,
     """
-    CREATE TABLE IF NOT EXISTS schedule_notification_logs (
-        id BIGINT AUTO_INCREMENT PRIMARY KEY,
-        user_id BIGINT NOT NULL,
-        reminder_type VARCHAR(50) NOT NULL,
-        reminder_date DATE NOT NULL,
-        created_at DATETIME NOT NULL,
-        CONSTRAINT fk_schedule_notification_logs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        UNIQUE KEY uq_schedule_notification_log (user_id, reminder_type, reminder_date),
-        INDEX idx_schedule_notification_logs_date (reminder_date)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    """,
-    """
     CREATE TABLE IF NOT EXISTS catalogs (
         id BIGINT AUTO_INCREMENT PRIMARY KEY,
         user_id BIGINT NOT NULL,
@@ -159,16 +147,6 @@ DEFAULTS = [
         "ON DUPLICATE KEY UPDATE `value`=VALUES(`value`), updated_at=VALUES(updated_at)",
         ('latest_reports_days', '10'),
     ),
-    (
-        "INSERT INTO bot_settings (`key`, `value`, updated_at) VALUES (%s, %s, NOW()) "
-        "ON DUPLICATE KEY UPDATE `value`=VALUES(`value`), updated_at=VALUES(updated_at)",
-        ('new_report_recipient_ids', ''),
-    ),
-    (
-        "INSERT INTO bot_settings (`key`, `value`, updated_at) VALUES (%s, %s, NOW()) "
-        "ON DUPLICATE KEY UPDATE `value`=VALUES(`value`), updated_at=VALUES(updated_at)",
-        ('shift_event_recipient_ids', ''),
-    )
 ]
 
 ALTERS = [

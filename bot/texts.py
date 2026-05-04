@@ -49,8 +49,6 @@ BTN_SET_EMPLOYEE_ROLE = "Назначить сотрудником"
 BTN_FINE = "Оштрафовать"
 BTN_RESET_HOURS = "Обнулить часы"
 BTN_SET_REPORTS_DAYS = "Настроить количество последних отчетов"
-BTN_SET_REPORT_RECIPIENTS = "Отправлять новые отчеты сотрудникам"
-BTN_SET_SHIFT_EVENT_RECIPIENTS = "Отправлять информацию об открытии/закрытии смены"
 BTN_CATALOG = "📚 Каталог"
 BTN_CREATE_CATALOG = "Создать каталог"
 BTN_CATALOG_LIST = "Список каталогов"
@@ -84,18 +82,6 @@ REPORT_NOT_FOUND = "Отчет не найден."
 REPORTS_EMPTY = "За последние {days} дней отчетов нет."
 REPORTS_SCREEN = "Последние отчеты за {days} дней. Нажмите кнопку ниже, чтобы открыть список"
 REPORT_CARD = "📝 Отчет #{id}\nСотрудник: {author}\nДата: {created_at}\n\n{description}"
-NEW_REPORT_NOTIFICATION = (
-    "Новый отчет от <b>{author_name}</b>\n"
-    "Дата: {report_date}\n"
-    "--------------------------------\n"
-    "<b>Выполнено:</b> {description}"
-)
-NEW_REPORT_RECIPIENTS_HINT = (
-    "Выберите сотрудников, которым будут приходить новые отчеты.\n\n"
-    "Можно оставить список пустым, тогда рассылка будет отключена."
-)
-NEW_REPORT_RECIPIENTS_SAVED = "Получатели новых отчетов сохранены:\n\n{selected_text}"
-NEW_REPORT_RECIPIENTS_CLEARED = "Получатели новых отчетов очищены. Теперь новые отчеты никому не рассылаются."
 
 # Смены
 ACTIVE_SHIFTS_EMPTY = "Сейчас нет сотрудников с открытой сменой."
@@ -109,25 +95,7 @@ SHIFT_DURATION = "Общее время смены: {duration}"
 SHIFT_LATE_LINE = "Опоздание: {late}"
 SHIFT_ALREADY_OPEN = "У вас уже есть открытая смена."
 SHIFT_NOT_OPEN = "У вас нет открытой смены."
-SHIFT_EVENT_OPEN = "🟢 Сотрудник открыл смену\n\n👤 {employee_name}\n🕒 {event_at_text}"
-SHIFT_EVENT_CLOSE = "🔴 Сотрудник закрыл смену\n\n👤 {employee_name}\n🕒 {event_at_text}"
-SHIFT_EVENT_DURATION = "\n⏱ Длительность смены: {duration}"
-SHIFT_EVENT_RECIPIENTS_HINT = (
-    "Выберите сотрудников, которым будут приходить уведомления об открытии и закрытии смен.\n\n"
-    "Администраторы продолжат получать эти уведомления автоматически. Можно оставить список пустым, тогда дополнительные уведомления будут отключены."
-)
-SHIFT_EVENT_RECIPIENTS_SAVED = "Получатели уведомлений об открытии/закрытии смен сохранены\n\n{selected_text}"
-SHIFT_EVENT_RECIPIENTS_CLEARED = (
-    "Получатели уведомлений об открытии/закрытии смен очищены. "
-    "Теперь такие уведомления будут приходить только администраторам."
-)
-SCHEDULE_OPEN_REMINDER = "⏰ Напоминание по графику\n\n{full_name}, вам необходимо открыть смену."
-SCHEDULE_CLOSE_REMINDER = "⏰ Напоминание по графику\n\n{full_name}, вам необходимо закрыть смену."
 
-# Опоздания и уведомления
-LATE_NOTIFICATION = "⚠️ Сотрудник опоздал на смену\n\n👤 {employee_name}\n⏱ Опоздание: {late_minutes} мин"
-RATE_CHANGED_NOTIFICATION = "ℹ️ Администратор изменил вашу ставку.\n\nНовая ставка: {rate:.2f}"
-SCHEDULE_CHANGED_NOTIFICATION = "ℹ️ Администратор изменил ваш график.\n\nДни: {days}\nВремя: {start_time}-{end_time}"
 
 # Админские сообщения
 SELECT_EMPLOYEES = "Выберите сотрудников:"
@@ -178,8 +146,6 @@ ADMIN_SCHEDULE_ITEM = "• {label}: {days}; {start}-{end}"
 REPORT_INLINE_DESCRIPTION = "{author} • {created_at}"
 PERIOD_INFO_HEADER = "👤 {name}\n\n{stats}"
 PAYROLL_LINE = "{name}: {amount:.2f}"
-NEW_REPORT_RECIPIENTS_SAVED_INLINE = "Получатели новых отчетов сохранены:\n\n{selected_text}"
-SHIFT_EVENT_RECIPIENTS_SAVED_INLINE = "Получатели уведомлений об открытии/закрытии смен сохранены\n\n{selected_text}"
 APPLY_CHANGES_RESULT_NAME = "👤 {name}\n"
 CONFIRM_PAYROLL_INLINE = "Подтвердите расчет:\n{lines}"
 PAYROLL_DONE_INLINE = "Сотрудники рассчитаны:\n{names}"

@@ -9,8 +9,7 @@ async def dashboard_metrics() -> dict:
         SELECT
             (SELECT COUNT(*) FROM users WHERE is_active=1) AS active_users,
             (SELECT COUNT(*) FROM shifts WHERE closed_at IS NULL) AS active_shifts,
-            (SELECT COUNT(*) FROM reports) AS reports_total,
-            (SELECT COUNT(*) FROM notifications WHERE is_active=1) AS active_notifications
+            (SELECT COUNT(*) FROM reports) AS reports_total
         """
     ) or {}
 

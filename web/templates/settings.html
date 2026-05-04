@@ -9,31 +9,6 @@
       <input type="number" min="1" max="365" name="latest_reports_days" value="{{ latest_reports_days }}">
     </label>
 
-    <div class="settings-section">
-      <div class="section-title">Получатели новых отчетов</div>
-      <div class="muted">Выберите сотрудников, которым будут приходить уведомления о новых отчетах.</div>
-      <div class="recipient-list">
-        {% for employee in employees %}
-          <label class="recipient-item">
-            <input
-              type="checkbox"
-              name="new_report_recipient_ids"
-              value="{{ employee.id }}"
-              {% if employee.id in selected_recipient_ids %}checked{% endif %}
-            >
-            <span class="recipient-main">{{ employee.full_name or employee.username or ('ID ' ~ employee.id) }}</span>
-            <span class="recipient-meta">
-              ID {{ employee.id }}
-              {% if employee.phone %} · {{ employee.phone }}{% endif %}
-              {% if not employee.is_active %} · Неактивен{% endif %}
-            </span>
-          </label>
-        {% else %}
-          <div class="muted">Сотрудники не найдены.</div>
-        {% endfor %}
-      </div>
-    </div>
-
     <div class="actions-row">
       <button type="submit">Сохранить</button>
     </div>

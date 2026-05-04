@@ -2,18 +2,12 @@ from __future__ import annotations
 
 import json
 
-from aiogram import Bot
 from fastapi import APIRouter, Form, Query, Request
 from starlette.responses import RedirectResponse, Response
 
 from bot.keyboards.inline import back_to_main_menu, graph_menu, profile_menu
 
-from bot.config import settings
 from bot.database import execute, fetch_all, fetch_one
-from bot.services.notifications import (
-    notify_employee_rate_changed,
-    notify_employee_schedule_changed,
-)
 from web.dependencies import require_login, require_role
 from web.routers.common import render
 from web.services.excel import build_workbook
@@ -95,13 +89,6 @@ async def employee_edit(request: Request, user_id: int, full_name: str = Form(''
         (full_name.strip(), phone.strip(), hourly_rate, 1 if is_active == '1' else 0, user_id),
     )
 
-    if existing and float(existing.get('hourly_rate') or 0) != float(hourly_rate):
-        bot = Bot(token=settings.bot_token)
-        try:
-            await notify_employee_rate_changed(bot, user_id, float(hourly_rate))
-        finally:
-            await bot.session.close()
-
     return RedirectResponse(f'/web/employees/{user_id}', status_code=303)
 
 
@@ -127,27 +114,5 @@ async def employee_schedule(request: Request, user_id: int, weekdays_json: str =
             'INSERT INTO user_schedules (user_id, weekdays_json, start_time, end_time, is_active, created_at, updated_at) VALUES (%s, %s, %s, %s, 1, NOW(), NOW())',
             (user_id, weekdays_clean, start_clean, end_clean),
         )
-
-    old_weekdays = (existing.get('weekdays_json') if existing else None) or ''
-    old_start = (existing.get('start_time') if existing else None) or ''
-    old_end = (existing.get('end_time') if existing else None) or ''
-
-    if old_weekdays != weekdays_clean or old_start != start_clean or old_end != end_clean:
-        try:
-            weekdays_list = [int(x.strip()) for x in weekdays_clean.split(',') if x.strip()]
-        except Exception:
-            weekdays_list = []
-
-        bot = Bot(token=settings.bot_token)
-        try:
-            await notify_employee_schedule_changed(
-                bot,
-                user_id,
-                weekdays_list,
-                start_clean,
-                end_clean,
-            )
-        finally:
-            await bot.session.close()
 
     return RedirectResponse(f'/web/employees/{user_id}', status_code=303)
