@@ -20,7 +20,7 @@ def ensure_catalogs_storage_dir() -> Path:
 
 def build_public_catalog_url(filename: str) -> str:
     prefix = getattr(settings, 'catalogs_url_prefix', '/catalogs').rstrip('/') or '/catalogs'
-    base = (getattr(settings, 'reports_public_base_url', '') or '').rstrip('/')
+    base = (getattr(settings, 'catalogs_public_base_url', '') or getattr(settings, 'reports_public_base_url', '') or '').rstrip('/')
     relative = f"{prefix}/{filename}"
     if not base:
         return relative

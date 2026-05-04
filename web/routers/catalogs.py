@@ -10,6 +10,7 @@ from web.config import web_settings
 from web.dependencies import require_login
 from web.routers.common import render
 from web.services.excel import build_workbook
+from bot.database import fetch_all
 from web.services.query import paginate_query, parse_page
 
 router = APIRouter(prefix='/web/catalogs', tags=['catalogs'])
@@ -29,17 +30,46 @@ def _build_catalog_public_url(filename: str) -> str:
     return f"{base}{relative}"
 
 
-def _resolve_catalog_image_url(item: dict) -> str | None:
-    local_path = item.get('preview_local_path')
+def _resolve_catalog_image_url(item: dict, *, local_key: str = 'preview_local_path', public_key: str = 'preview_public_url') -> str | None:
+    local_path = item.get(local_key)
     if local_path:
         file_name = Path(local_path).name
         return f"/web/catalog-files/{file_name}"
 
-    public_url = item.get('preview_public_url')
+    public_url = item.get(public_key)
     if public_url:
         return public_url
 
     return None
+
+
+async def _attach_catalog_photos(items: list[dict]) -> None:
+    if not items:
+        return
+
+    catalog_ids = [int(item['id']) for item in items]
+    placeholders = ','.join(['%s'] * len(catalog_ids))
+    photos = await fetch_all(
+        f"""
+        SELECT id, catalog_id, photo_public_url, photo_local_path, created_at
+        FROM catalog_photos
+        WHERE catalog_id IN ({placeholders})
+        ORDER BY catalog_id ASC, id ASC
+        """,
+        tuple(catalog_ids),
+    )
+
+    grouped: dict[int, list[dict]] = {catalog_id: [] for catalog_id in catalog_ids}
+    for photo in photos:
+        photo['image_url'] = _resolve_catalog_image_url(
+            photo,
+            local_key='photo_local_path',
+            public_key='photo_public_url',
+        )
+        grouped.setdefault(int(photo['catalog_id']), []).append(photo)
+
+    for item in items:
+        item['photos'] = grouped.get(int(item['id']), [])
 
 
 @router.get('')
@@ -79,6 +109,7 @@ async def catalogs_list(
     data = await paginate_query(base_query, count_query, tuple(args), parse_page(page), PAGE_SIZE)
     for item in data['items']:
         item['preview_image_url'] = _resolve_catalog_image_url(item)
+    await _attach_catalog_photos(data['items'])
     if export == 'xlsx':
         rows = [[i['id'], i.get('title') or '', i.get('tags_text') or '', i.get('full_name') or i.get('username') or '', i['created_at'], i.get('photos_count') or 0] for i in data['items']]
         content = build_workbook('Catalogs', ['ID', 'Название', 'Теги', 'Создатель', 'Дата', 'Фото'], rows)

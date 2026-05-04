@@ -12,9 +12,9 @@
   <input type="date" name="date_from" value="{{ filters.date_from }}">
   <input type="date" name="date_to" value="{{ filters.date_to }}">
 </form>
-<div class="cards-grid report-grid">
+<div class="cards-grid report-grid catalog-grid">
   {% for item in data['items'] %}
-  <div class="card report-card">
+  <div class="card report-card catalog-card">
     {% if item.preview_image_url %}
       <img src="{{ item.preview_image_url }}" alt="catalog preview" loading="lazy">
     {% else %}
@@ -24,6 +24,32 @@
     <p><strong>Создатель:</strong> {{ item.full_name or item.username or '—' }}</p>
     <p><strong>Теги:</strong> {{ item.tags_text or '—' }}</p>
     <p><strong>Фото:</strong> {{ item.photos_count or 0 }}</p>
+
+    <details class="catalog-details">
+      <summary>Раскрыть каталог</summary>
+      <div class="catalog-expanded">
+        <div class="catalog-expanded-meta">
+          <div><strong>ID:</strong> {{ item.id }}</div>
+          <div><strong>Название:</strong> {{ item.title or '—' }}</div>
+          <div><strong>Дата:</strong> {{ item.created_at }}</div>
+        </div>
+        {% if item.photos %}
+          <div class="catalog-photos-grid">
+            {% for photo in item.photos %}
+              {% if photo.image_url %}
+                <a class="catalog-photo-link" href="{{ photo.image_url }}" target="_blank" rel="noopener">
+                  <img src="{{ photo.image_url }}" alt="catalog photo" loading="lazy">
+                </a>
+              {% else %}
+                <div class="placeholder small">Фото недоступно</div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="muted">В каталоге нет фотографий</div>
+        {% endif %}
+      </div>
+    </details>
   </div>
   {% else %}
   <div class="card">Ничего не найдено</div>

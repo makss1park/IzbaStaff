@@ -22,7 +22,7 @@ from bot.keyboards.inline import catalog_menu_keyboard, main_menu_admin, main_me
 from bot.services.catalogs import add_catalog_photo, create_catalog, get_catalog_by_id, search_catalogs
 from bot.states import CatalogCreateState
 from bot.ui.navigation import back_to_main_menu
-from bot.utils.catalog_storage import save_telegram_catalog_photo
+from bot.utils.catalog_storage import build_public_catalog_url, save_telegram_catalog_photo
 from bot.utils.media import open_photo_screen_from_callback, send_photo_screen
 from bot.utils.telegram import edit_or_send
 
@@ -50,6 +50,27 @@ def _catalog_info_text(item: dict) -> str:
         photos_count=photos_count,
     )
 
+
+
+
+def _catalog_preview_url(item: dict) -> str:
+    """Return an absolute thumbnail URL for Telegram inline results.
+
+    New catalog photos store photo_public_url. Older rows may only have
+    photo_local_path, so we rebuild the public URL from the first local file.
+    Telegram thumbnails must be available by http/https URL.
+    """
+    public_url = str(item.get('preview_public_url') or '').strip()
+    if public_url.startswith(('http://', 'https://')):
+        return public_url
+
+    local_path = str(item.get('preview_local_path') or '').strip()
+    if local_path:
+        rebuilt_url = build_public_catalog_url(local_path.rsplit('/', 1)[-1])
+        if rebuilt_url.startswith(('http://', 'https://')):
+            return rebuilt_url
+
+    return 'https://placehold.co/200x200?text=Catalog'
 
 def _catalog_inline_description(item: dict) -> str:
     author = item.get('full_name') or item.get('username') or texts.EMPLOYEE_FALLBACK
@@ -222,7 +243,7 @@ async def catalogs_inline_dispatcher(query: InlineQuery) -> None:
             title = (item.get('title') or texts.NO_DESCRIPTION).strip()
             if len(title) > 60:
                 title = title[:57] + '...'
-            preview_url = item.get('preview_public_url') if str(item.get('preview_public_url') or '').startswith('http') else 'https://placehold.co/200x200?text=Catalog'
+            preview_url = _catalog_preview_url(item)
             results.append(
                 InlineQueryResultArticle(
                     id=f"catalog_{item['id']}",

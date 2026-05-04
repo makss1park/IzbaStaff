@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     default_reports_days: int = Field(default=10, alias="DEFAULT_REPORTS_DAYS")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     reports_public_base_url: str = Field(default='', alias='REPORTS_PUBLIC_BASE_URL')
+    catalogs_public_base_url: str = Field(default='', alias='CATALOGS_PUBLIC_BASE_URL')
     reports_url_prefix: str = Field(default='/reports', alias='REPORTS_URL_PREFIX')
     reports_storage_dir: str = Field(default='storage/reports', alias='REPORTS_STORAGE_DIR')
     catalogs_url_prefix: str = Field(default='/catalogs', alias='CATALOGS_URL_PREFIX')
