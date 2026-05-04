@@ -29,6 +29,10 @@ from bot.keyboards.inline import (
 )
 from bot.ui.navigation import back_to_main_menu, with_back_button
 from bot.services.fines import create_fine
+from bot.services.notifications import (
+    notify_employee_rate_changed,
+    notify_employee_schedule_changed,
+)
 from bot.services.payroll import (
     bulk_close_periods,
     get_current_period_fines,
@@ -39,7 +43,11 @@ from bot.services.reports import get_recent_reports, get_report_by_id
 from bot.services.schedules import get_schedules_map, set_schedule as apply_user_schedule
 from bot.services.settings_service import (
     get_latest_reports_days,
+    get_new_report_recipient_ids,
+    get_shift_event_recipient_ids,
     set_latest_reports_days,
+    set_new_report_recipient_ids,
+    set_shift_event_recipient_ids,
 )
 from bot.services.shifts import get_active_shifts, get_shift_by_id, delete_shift, update_shift_duration_minutes
 from bot.services.users import (
@@ -53,6 +61,7 @@ from bot.services.users import (
 from bot.states import (
     AdminFineState,
     AdminRateState,
+    AdminReportRecipientsState,
     AdminScheduleState,
     AdminSettingsState,
     AdminShiftEditState,
@@ -126,6 +135,13 @@ async def apply_changes_and_finish(message, state):
 
         if schedule:
             await apply_user_schedule([user_id], schedule["days"], schedule["start_time"], schedule["end_time"])
+            await notify_employee_schedule_changed(
+                message.bot,
+                user_id,
+                schedule["days"],
+                schedule["start_time"],
+                schedule["end_time"],
+            )
 
         result_text += texts.APPLY_CHANGES_RESULT_NAME.format(name=name)
         for key, value in changes.items():
@@ -466,6 +482,8 @@ async def employee_select(callback: CallbackQuery, state: FSMContext, is_admin: 
     selection_mode = data.get("selection_mode")
 
     users = await list_all_users()
+    if selection_mode in {"report_recipients", "shift_event_recipients"}:
+        users = [user for user in users if user.get("role") in {"employee", "manager"}]
     all_ids = {u["id"] for u in users}
     selected &= all_ids
 
@@ -496,6 +514,44 @@ async def employee_select(callback: CallbackQuery, state: FSMContext, is_admin: 
 
     elif action == "done":
         selected_ids = list(sorted(selected))
+        if selection_mode == "report_recipients":
+            await set_new_report_recipient_ids(selected_ids)
+            await state.clear()
+            if selected_ids:
+                selected_text = _format_selected_users(users, selected_ids)
+                await edit_or_send(
+                    callback,
+                    texts.NEW_REPORT_RECIPIENTS_SAVED_INLINE.format(selected_text=selected_text),
+                    reply_markup=back_to_main_menu(True),
+                )
+            else:
+                await edit_or_send(
+                    callback,
+                    texts.NEW_REPORT_RECIPIENTS_CLEARED,
+                    reply_markup=back_to_main_menu(True),
+                )
+            await callback.answer(texts.SAVED)
+            return
+
+        if selection_mode == "shift_event_recipients":
+            await set_shift_event_recipient_ids(selected_ids)
+            await state.clear()
+            if selected_ids:
+                selected_text = _format_selected_users(users, selected_ids)
+                await edit_or_send(
+                    callback,
+                    texts.SHIFT_EVENT_RECIPIENTS_SAVED_INLINE.format(selected_text=selected_text),
+                    reply_markup=back_to_main_menu(True),
+                )
+            else:
+                await edit_or_send(
+                    callback,
+                    texts.SHIFT_EVENT_RECIPIENTS_CLEARED,
+                    reply_markup=back_to_main_menu(True),
+                )
+            await callback.answer(texts.SAVED)
+            return
+
         if not selected:
             await callback.answer(texts.SELECT_AT_LEAST_ONE, show_alert=True)
             return
@@ -779,6 +835,13 @@ async def admin_schedule_end(message: Message, state: FSMContext, is_admin: bool
         user = await get_user_by_id(user_id)
         if user:
             names.append(user.get("full_name") or user.get("username") or str(user["tg_id"]))
+            await notify_employee_schedule_changed(
+                message.bot,
+                user_id,
+                data["schedule_days"],
+                data["schedule_start"],
+                end_time,
+            )
 
     await state.clear()
     await state.update_data(selected_user_ids=user_ids)
@@ -814,6 +877,7 @@ async def admin_rate(message: Message, state: FSMContext, is_admin: bool) -> Non
         user = await get_user_by_id(user_id)
         if user:
             names.append(user.get("full_name") or user.get("username") or str(user["tg_id"]))
+            await notify_employee_rate_changed(message.bot, user_id, rate)
 
     await state.clear()
     await state.update_data(selected_user_ids=user_ids)
@@ -952,6 +1016,51 @@ async def settings_reports_days_save(message: Message, state: FSMContext, is_adm
     await state.clear()
     await message.answer(texts.REPORT_DAYS_UPDATED.format(days=days))
     await _send_admin_main_menu(message)
+
+@router.callback_query(F.data == "settings:new_report_recipients")
+async def settings_new_report_recipients(callback: CallbackQuery, state: FSMContext, is_admin: bool) -> None:
+    if not await _ensure_admin(callback, is_admin):
+        return
+
+    users = [user for user in await list_all_users() if user.get("role") in {"employee", "manager"}]
+    available_ids = {user["id"] for user in users}
+    selected_ids = set(await get_new_report_recipient_ids()) & available_ids
+
+    await state.set_state(AdminReportRecipientsState.selecting_users)
+    await state.update_data(
+        selection_mode="report_recipients",
+        selected_user_ids=list(selected_ids),
+    )
+
+    await edit_or_send(
+        callback,
+        texts.NEW_REPORT_RECIPIENTS_HINT,
+        reply_markup=employees_selection_keyboard(users, selected_ids),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "settings:shift_event_recipients")
+async def settings_shift_event_recipients(callback: CallbackQuery, state: FSMContext, is_admin: bool) -> None:
+    if not await _ensure_admin(callback, is_admin):
+        return
+
+    users = [user for user in await list_all_users() if user.get("role") in {"employee", "manager"}]
+    available_ids = {user["id"] for user in users}
+    selected_ids = set(await get_shift_event_recipient_ids()) & available_ids
+
+    await state.set_state(AdminReportRecipientsState.selecting_users)
+    await state.update_data(
+        selection_mode="shift_event_recipients",
+        selected_user_ids=list(selected_ids),
+    )
+
+    await edit_or_send(
+        callback,
+        texts.SHIFT_EVENT_RECIPIENTS_HINT,
+        reply_markup=employees_selection_keyboard(users, selected_ids),
+    )
+    await callback.answer()
 
 
 def _format_admin_shift_card(shift: dict) -> str:

@@ -38,6 +38,9 @@ class AdminSettingsState(StatesGroup):
     waiting_reports_days = State()
 
 
+class AdminReportRecipientsState(StatesGroup):
+    selecting_users = State()
+
 
 class CatalogCreateState(StatesGroup):
     waiting_title = State()
