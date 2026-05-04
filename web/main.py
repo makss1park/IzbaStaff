@@ -35,12 +35,14 @@ if not reports_dir.is_absolute():
     reports_dir = Path(__file__).resolve().parent.parent / reports_dir
 reports_dir.mkdir(parents=True, exist_ok=True)
 app.mount(web_settings.reports_url_prefix, StaticFiles(directory=reports_dir), name='report_files')
+app.mount('/web/report-files', StaticFiles(directory=reports_dir), name='web_report_files')
 
 catalogs_dir = Path(web_settings.catalogs_storage_dir)
 if not catalogs_dir.is_absolute():
     catalogs_dir = Path(__file__).resolve().parent.parent / catalogs_dir
 catalogs_dir.mkdir(parents=True, exist_ok=True)
 app.mount(web_settings.catalogs_url_prefix, StaticFiles(directory=catalogs_dir), name='catalog_files')
+app.mount('/web/catalog-files', StaticFiles(directory=catalogs_dir), name='web_catalog_files')
 
 app.include_router(auth.router)
 app.include_router(dashboard.router)

@@ -20,7 +20,7 @@ router = APIRouter(prefix='/web/reports', tags=['reports'])
 PAGE_SIZE = 12
 
 
-def _build_report_web_url(filename: str) -> str:
+def _build_report_public_url(filename: str) -> str:
     prefix = web_settings.reports_url_prefix.rstrip('/') or '/reports'
     base = (web_settings.reports_public_base_url or '').rstrip('/')
     relative = f"{prefix}/{filename}"
@@ -28,18 +28,19 @@ def _build_report_web_url(filename: str) -> str:
         return relative
 
     parsed = urlparse(base)
-    base_path = parsed.path.rstrip('/')
-    if base_path == prefix:
+    if parsed.path.rstrip('/') == prefix:
         return f"{base}/{filename}"
     return f"{base}{relative}"
 
 
 def _resolve_report_image_url(item: dict) -> str | None:
-    # Prefer rebuilding the URL from local_path: this protects the admin page
-    # from old/incorrect DB values like /reports/reports/<file>.jpg.
     local_path = item.get('photo_local_path')
     if local_path:
-        return _build_report_web_url(Path(local_path).name)
+        file_name = Path(local_path).name
+        # Use a /web/* path for the admin preview. This path is served by the
+        # same FastAPI app as the admin panel, so it works even if nginx does
+        # not separately proxy /reports.
+        return f"/web/report-files/{file_name}"
 
     public_url = item.get('photo_public_url')
     if public_url:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Query, Request
 from starlette.responses import Response
@@ -15,14 +16,30 @@ router = APIRouter(prefix='/web/catalogs', tags=['catalogs'])
 PAGE_SIZE = 12
 
 
+def _build_catalog_public_url(filename: str) -> str:
+    prefix = web_settings.catalogs_url_prefix.rstrip('/') or '/catalogs'
+    base = (web_settings.reports_public_base_url or '').rstrip('/')
+    relative = f"{prefix}/{filename}"
+    if not base:
+        return relative
+
+    parsed = urlparse(base)
+    if parsed.path.rstrip('/') == prefix:
+        return f"{base}/{filename}"
+    return f"{base}{relative}"
+
+
 def _resolve_catalog_image_url(item: dict) -> str | None:
-    if item.get('preview_public_url'):
-        return item['preview_public_url']
     local_path = item.get('preview_local_path')
-    if not local_path:
-        return None
-    file_name = Path(local_path).name
-    return f"{web_settings.catalogs_url_prefix.rstrip('/')}/{file_name}"
+    if local_path:
+        file_name = Path(local_path).name
+        return f"/web/catalog-files/{file_name}"
+
+    public_url = item.get('preview_public_url')
+    if public_url:
+        return public_url
+
+    return None
 
 
 @router.get('')
