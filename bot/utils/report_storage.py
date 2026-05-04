@@ -18,15 +18,11 @@ def ensure_reports_storage_dir() -> Path:
 
 
 def build_public_report_url(filename: str) -> str:
-    """Build a URL for a saved report photo.
+    """Build a public URL for a saved report photo.
 
-    REPORTS_PUBLIC_BASE_URL can be set either to the site origin:
-      http://82.115.50.89
-    or directly to the public reports folder:
-      http://82.115.50.89/reports/
-
-    In both cases the result must be:
-      http://82.115.50.89/reports/<filename>
+    Supports both variants of REPORTS_PUBLIC_BASE_URL:
+    - http://82.115.50.89
+    - http://82.115.50.89/reports
     """
     prefix = settings.reports_url_prefix.rstrip('/') or '/reports'
     base = (settings.reports_public_base_url or '').rstrip('/')
@@ -35,8 +31,7 @@ def build_public_report_url(filename: str) -> str:
         return relative
 
     parsed = urlparse(base)
-    base_path = parsed.path.rstrip('/')
-    if base_path == prefix:
+    if parsed.path.rstrip('/') == prefix:
         return f"{base}/{filename}"
     return f"{base}{relative}"
 

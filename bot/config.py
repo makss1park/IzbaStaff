@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     reports_public_base_url: str = Field(default='', alias='REPORTS_PUBLIC_BASE_URL')
     reports_url_prefix: str = Field(default='/reports', alias='REPORTS_URL_PREFIX')
     reports_storage_dir: str = Field(default='storage/reports', alias='REPORTS_STORAGE_DIR')
+    catalogs_url_prefix: str = Field(default='/catalogs', alias='CATALOGS_URL_PREFIX')
+    catalogs_storage_dir: str = Field(default='storage/catalogs', alias='CATALOGS_STORAGE_DIR')
 
     @field_validator("admin_ids")
     @classmethod
