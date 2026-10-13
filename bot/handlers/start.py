@@ -20,6 +20,7 @@ from bot.keyboards.inline import (
     with_back_button,
 )
 from bot.services.payroll import get_current_period_stats
+from bot.services.permissions import can_assign_fines
 from bot.services.reports import get_recent_reports
 from bot.services.schedules import get_schedules_map
 from bot.services.settings_service import get_latest_reports_days
@@ -62,7 +63,7 @@ async def send_main_menu(message: Message, is_admin: bool, state: FSMContext | N
     await send_photo_screen(
         message,
         asset_name="main_menu",
-        reply_markup=main_menu_for_role(role),
+        reply_markup=main_menu_for_role(role, await can_assign_fines(db_user)),
     )
 
 
@@ -75,7 +76,7 @@ async def send_main_menu_callback(callback: CallbackQuery, is_admin: bool, state
             message,
             asset_name="main_menu",
             caption="",
-            reply_markup=main_menu_for_role(role),
+            reply_markup=main_menu_for_role(role, await can_assign_fines(db_user)),
         )
     await callback.answer()
 

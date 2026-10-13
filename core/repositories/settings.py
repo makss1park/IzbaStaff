@@ -9,6 +9,7 @@ from core.db import execute, fetch_all, fetch_one
 LATEST_REPORTS_DAYS = "latest_reports_days"
 NEW_REPORT_RECIPIENT_IDS = "new_report_recipient_ids"
 SHIFT_EVENT_RECIPIENT_IDS = "shift_event_recipient_ids"
+FINE_GRANTEE_IDS = "fine_grantee_ids"  # сотрудники, которым админ разрешил назначать штрафы
 
 
 async def get_value(key: str) -> str | None:

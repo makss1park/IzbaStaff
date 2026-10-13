@@ -21,11 +21,17 @@ from bot.keyboards.inline import (
     period_info_actions_keyboard,
     role_change_keyboard,
 )
-from bot.services.notifications import notify_employee_schedule_changed
+from bot.services.notifications import notify_employee_schedule_changed, notify_fine_access_changed
 from bot.services.payroll import get_current_period_fines, get_current_period_shift_list, get_current_period_stats
 from bot.services.schedules import get_schedules_map
 from bot.services.schedules import set_schedule as apply_user_schedule
-from bot.services.settings_service import set_new_report_recipient_ids, set_shift_event_recipient_ids
+from bot.services.permissions import can_assign_fines, fine_targets
+from bot.services.settings_service import (
+    get_fine_grantee_ids,
+    set_fine_grantee_ids,
+    set_new_report_recipient_ids,
+    set_shift_event_recipient_ids,
+)
 from bot.services.users import (
     decorate_users_with_schedule,
     delete_users,
@@ -55,7 +61,17 @@ _RECIPIENT_MODES = {
         texts.SHIFT_EVENT_RECIPIENTS_SAVED_INLINE,
         texts.SHIFT_EVENT_RECIPIENTS_CLEARED,
     ),
+    # «Настройки → Выдать доступ → Назначение штрафов»
+    "fine_grantees": (
+        set_fine_grantee_ids,
+        texts.FINE_GRANTEES_SAVED_INLINE,
+        texts.FINE_GRANTEES_CLEARED,
+    ),
 }
+
+# Режим, в котором экраном выбора пользуется не только админ, но и сотрудник
+# с выданным доступом: выбор тех, кому назначить штраф (кнопка «Назначить штраф»).
+FINE_MODE = "fine"
 
 _CHANGE_LABELS = {
     "full_name": texts.CHANGE_LABEL_FULL_NAME,
@@ -87,7 +103,14 @@ async def manage_employees(message: Message, state: FSMContext, is_admin: bool) 
 
 async def _finish_recipients_selection(callback: CallbackQuery, state: FSMContext, mode: str, users: list[dict], selected_ids: list[int]) -> None:
     save, saved_text, cleared_text = _RECIPIENT_MODES[mode]
+    previous_ids = set(await get_fine_grantee_ids()) if mode == "fine_grantees" else set()
     await save(selected_ids)
+    if mode == "fine_grantees":
+        await notify_fine_access_changed(
+            callback.bot,
+            granted_ids=set(selected_ids) - previous_ids,
+            revoked_ids=previous_ids - set(selected_ids),
+        )
     await state.clear()
     if selected_ids:
         text = saved_text.format(selected_text=format_selected_users(users, selected_ids))
@@ -98,17 +121,21 @@ async def _finish_recipients_selection(callback: CallbackQuery, state: FSMContex
 
 
 @router.callback_query(F.data.startswith("emp_select:"))
-async def employee_select(callback: CallbackQuery, state: FSMContext, is_admin: bool) -> None:
-    if not await ensure_admin(callback, is_admin):
-        return
-
-    action = callback.data.split(":")[1]
+async def employee_select(callback: CallbackQuery, state: FSMContext, is_admin: bool, db_user: dict) -> None:
     data = await state.get_data()
     selection_mode = data.get("selection_mode")
 
+    # Не-админу экран выбора доступен только для назначения штрафа и только с выданным доступом.
+    if not is_admin and not (selection_mode == FINE_MODE and await can_assign_fines(db_user)):
+        await ensure_admin(callback, is_admin)
+        return
+
+    action = callback.data.split(":")[1]
     users = await list_all_users()
     if selection_mode in _RECIPIENT_MODES:
         users = [user for user in users if user.get("role") in {"employee", "manager"}]
+    elif selection_mode == FINE_MODE:
+        users = fine_targets(users, db_user)
     all_ids = {user["id"] for user in users}
     selected = set(selected_user_ids(data)) & all_ids
 
@@ -130,6 +157,14 @@ async def employee_select(callback: CallbackQuery, state: FSMContext, is_admin: 
 
         if not selected_ids:
             await callback.answer(texts.SELECT_AT_LEAST_ONE, show_alert=True)
+            return
+
+        if selection_mode == FINE_MODE:
+            # Сразу к штрафу: дальше работают те же шаги, что и у админа (описание → сумма).
+            await state.update_data(selected_user_ids=selected_ids)
+            await state.set_state(AdminFineState.waiting_reason)
+            await edit_or_send(callback, texts.ENTER_FINE_REASON)
+            await callback.answer()
             return
         await state.update_data(selected_user_ids=selected_ids)
         await edit_or_send(

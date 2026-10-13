@@ -7,6 +7,7 @@ from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 from bot import texts
 from bot.keyboards.inline import main_menu_for_role
 from bot.services.notifications import notify_new_report_recipients, with_active_admin_ids
+from bot.services.permissions import can_assign_fines
 from bot.services.reports import create_report
 from bot.services.settings_service import get_new_report_recipient_ids
 from bot.states import QuickReportState
@@ -78,7 +79,7 @@ async def report_photo(message: Message, state: FSMContext, db_user: dict) -> No
         message,
         asset_name="main_menu",
         caption="",
-        reply_markup=main_menu_for_role(db_user.get("role")),
+        reply_markup=main_menu_for_role(db_user.get("role"), await can_assign_fines(db_user)),
     )
 
 

@@ -51,6 +51,9 @@ BTN_RESET_HOURS = "Обнулить часы"
 BTN_SET_REPORTS_DAYS = "Настроить период последних отчетов (дни)"
 BTN_SET_REPORT_RECIPIENTS = "Отправлять новые отчеты сотрудникам"
 BTN_SET_SHIFT_EVENT_RECIPIENTS = "Отправлять информацию об открытии/закрытии смены"
+BTN_GRANT_ACCESS = "Выдать доступ"
+BTN_ACCESS_FINES = "Назначение штрафов"
+BTN_ASSIGN_FINE = "Назначить штраф"
 BTN_CATALOG = "📚 Каталог"
 BTN_CREATE_CATALOG = "Создать каталог"
 BTN_CATALOG_LIST = "Список каталогов"
@@ -248,3 +251,20 @@ CATALOG_SEARCH_READY = "Запрос сохранен: {query}"
 CATALOG_SEARCH_INLINE_HINT = "Нажмите кнопку ниже, чтобы открыть результаты поиска по каталогу."
 CATALOG_INFO_TEMPLATE = "📚 <b>{title}</b>\n\n👤 Создал: {author}\n📅 Дата создания: {created_at}\n🏷 Теги: {tags}\n🖼 Фотографий: {photos_count}"
 CATALOG_INLINE_DESCRIPTION = "{author} • {created_at} • {tags}"
+
+
+# Выдача доступа сотрудникам
+GRANT_ACCESS_MENU = "К какой функции выдать доступ сотрудникам?"
+FINE_GRANTEES_HINT = (
+    "Выберите сотрудников, которые смогут назначать штрафы.\n"
+    "У них в главном меню появится кнопка «Назначить штраф»."
+)
+FINE_GRANTEES_SAVED_INLINE = "Доступ к назначению штрафов выдан:\n\n{selected_text}"
+FINE_GRANTEES_CLEARED = "Доступ к назначению штрафов отозван у всех сотрудников."
+FINE_ACCESS_GRANTED_NOTIFICATION = (
+    "✅ Администратор выдал вам доступ к назначению штрафов.\n"
+    "Кнопка «Назначить штраф» появилась в главном меню."
+)
+FINE_ACCESS_REVOKED_NOTIFICATION = "ℹ️ Администратор отозвал у вас доступ к назначению штрафов."
+SELECT_EMPLOYEES_FOR_FINE = "Выберите сотрудников, которым нужно назначить штраф:"
+NO_EMPLOYEES_FOR_FINE = "Нет сотрудников, которым можно назначить штраф."
