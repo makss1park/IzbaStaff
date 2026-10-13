@@ -18,16 +18,6 @@ class AdminShiftEditState(StatesGroup):
     waiting_minutes = State()
 
 
-class AdminScheduleState(StatesGroup):
-    waiting_days = State()
-    waiting_start_time = State()
-    waiting_end_time = State()
-
-
-class AdminRateState(StatesGroup):
-    waiting_rate = State()
-
-
 class AdminFineState(StatesGroup):
     waiting_reason = State()
     waiting_amount = State()

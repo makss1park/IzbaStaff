@@ -5,6 +5,9 @@ from typing import Iterable
 
 from openpyxl import Workbook
 from openpyxl.styles import Font
+from starlette.responses import Response
+
+XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 def build_workbook(title: str, headers: list[str], rows: Iterable[list[object]]) -> bytes:
@@ -17,9 +20,18 @@ def build_workbook(title: str, headers: list[str], rows: Iterable[list[object]])
     for row in rows:
         ws.append(list(row))
     for column in ws.columns:
-        width = max(len(str(cell.value or '')) for cell in column) + 2
+        width = max(len(str(cell.value or "")) for cell in column) + 2
         ws.column_dimensions[column[0].column_letter].width = min(width, 40)
     buffer = BytesIO()
     wb.save(buffer)
     buffer.seek(0)
     return buffer.read()
+
+
+def xlsx_response(filename: str, title: str, headers: list[str], rows: Iterable[list[object]]) -> Response:
+    """Готовый ответ «скачать Excel»."""
+    return Response(
+        content=build_workbook(title, headers, rows),
+        media_type=XLSX_MEDIA_TYPE,
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )

@@ -4,10 +4,9 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 
-from bot.database import fetch_all
 from bot import texts
 from bot.keyboards.inline import main_menu_for_role
-from bot.services.notifications import notify_new_report_recipients
+from bot.services.notifications import notify_new_report_recipients, with_active_admin_ids
 from bot.services.reports import create_report
 from bot.services.settings_service import get_new_report_recipient_ids
 from bot.states import QuickReportState
@@ -55,16 +54,12 @@ async def report_photo(message: Message, state: FSMContext, db_user: dict) -> No
         photo_local_path=photo_local_path,
     )
 
-    recipient_ids = set(await get_new_report_recipient_ids())
-    admin_rows = await fetch_all(
-        "SELECT id FROM users WHERE role='admin' AND is_active=1"
-    )
-    recipient_ids.update(int(row["id"]) for row in admin_rows if row.get("id") is not None)
+    recipient_ids = await with_active_admin_ids(await get_new_report_recipient_ids())
 
     author_name = db_user.get("full_name") or db_user.get("username") or str(db_user.get("tg_id"))
     await notify_new_report_recipients(
         message.bot,
-        recipient_ids=sorted(recipient_ids),
+        recipient_ids=recipient_ids,
         author_name=author_name,
         description=description,
         photo_file_id=photo.file_id,

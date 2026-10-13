@@ -7,7 +7,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from bot.database import close_pool, init_pool
+from core.db import close_pool, init_pool
 from web.config import web_settings
 from web.routers import auth, dashboard, employees, reports, shifts, payroll, settings, admins, catalogs
 

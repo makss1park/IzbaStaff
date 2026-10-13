@@ -4,7 +4,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 import asyncio
 
-from bot.database import acquire, close_pool, init_pool
+from core.db import acquire, close_pool, init_pool
 from web.auth import hash_password
 from web.config import web_settings
 

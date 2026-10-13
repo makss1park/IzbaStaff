@@ -84,11 +84,29 @@ server {
 
 ## Структура проекта
 ```
-bot/            Telegram-бот: handlers, services, keyboards, utils
-web/            веб-админка: routers, services, templates, static
-scripts/        служебные скрипты, включая инициализацию БД
-storage/reports/локально сохранённые фотографии отчётов
-run.py          точка входа для бота
-run_web.py      точка входа для веб-админки
-init_db.py      короткая точка входа для инициализации БД
+core/                общий слой для бота и веб-админки
+  db.py              пул соединений MySQL (bot/database.py оставлен как обёртка для старых импортов)
+  clock.py           текущее время в часовом поясе приложения
+  repositories/      весь SQL проекта, по модулю на таблицу: users, shifts, payroll, fines,
+                     schedules, reports, catalogs, settings, reminders, admin_users, dashboard
+bot/                 Telegram-бот
+  handlers/admin/    админские хендлеры: reports, inline, employees, payroll, settings, shifts
+  handlers/          остальные хендлеры (start, employee, reports, catalogs, commands)
+  services/          бизнес-логика: расчёт опозданий, периоды, уведомления — данные берёт из core.repositories
+  keyboards/ ui/ utils/
+web/                 веб-админка
+  routers/           HTTP-эндпоинты; SQL здесь нет — только вызовы core.repositories
+  services/          помощники веба: фильтр сотрудников, Excel-выгрузка, разбор форм, ссылки на фото
+  templates/ static/
+scripts/             служебные скрипты, включая инициализацию БД
+storage/             локально сохранённые фото отчётов и каталогов
+run.py               точка входа для бота
+run_web.py           точка входа для веб-админки
+init_db.py           короткая точка входа для инициализации БД
 ```
+
+### Где что менять
+- **Новый или изменённый SQL** — только в `core/repositories/<таблица>.py`.
+- **Правила расчёта** (опоздания, зарплата, напоминания) — в `bot/services/`.
+- **Новый админский экран бота** — в подходящем модуле `bot/handlers/admin/`. Порядок под-роутеров
+  в `bot/handlers/admin/__init__.py` важен: при совпадении фильтров aiogram выбирает первый хендлер.

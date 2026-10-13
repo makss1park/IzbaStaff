@@ -1,17 +1,20 @@
 from __future__ import annotations
 
+import json
 import logging
-from datetime import date
-from typing import Any
+from datetime import datetime
 
 from aiogram import Bot
 
 from bot import texts
-from bot.database import execute, fetch_all, fetch_one
-from bot.services.shifts import get_open_shift
 from bot.services.settings_service import get_shift_event_recipient_ids
-from bot.services.users import get_admin_users, get_user_by_id, list_all_users
+from bot.services.shifts import get_open_shift
+from bot.services.users import display_name, get_user_by_id
 from bot.utils.dates import now_local, seconds_to_human
+from core.clock import now_naive
+from core.repositories import reminders as reminders_repo
+from core.repositories import schedules as schedules_repo
+from core.repositories import users as users_repo
 
 logger = logging.getLogger(__name__)
 
@@ -22,39 +25,43 @@ __all__ = [
     "notify_new_report_recipients",
     "notify_shift_event_recipients",
     "dispatch_schedule_shift_notifications",
+    "with_active_admin_ids",
 ]
+
+_WEEKDAY_NAMES_EN = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+_MONTH_NAMES_EN = (
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+)
+
+
+async def _send(bot: Bot, chat_id: int, text: str, *, what: str, **kwargs) -> bool:
+    """Отправляет сообщение; ошибку (бот заблокирован и т.п.) только логирует."""
+    try:
+        await bot.send_message(chat_id, text, **kwargs)
+        return True
+    except Exception as exc:
+        logger.warning("Failed to send %s notification to %s: %s", what, chat_id, exc)
+        return False
 
 
 async def notify_admins_about_late(bot: Bot, user: dict, late_seconds: int) -> None:
     if late_seconds <= 0:
         return
 
-    admins = await get_admin_users()
-    late_minutes = late_seconds // 60
-    text = (
-        texts.LATE_NOTIFICATION.format(employee_name=user.get("full_name") or user.get("username"), late_minutes=late_minutes)
+    text = texts.LATE_NOTIFICATION.format(
+        employee_name=display_name(user),
+        late_minutes=max(1, late_seconds // 60),
     )
-
-    for admin in admins:
-        try:
-            await bot.send_message(admin["tg_id"], text)
-        except Exception:
-            pass
+    for admin in await users_repo.list_active_admins():
+        await _send(bot, admin["tg_id"], text, what="late")
 
 
 async def notify_employee_rate_changed(bot: Bot, user_id: int, rate: float) -> None:
     user = await get_user_by_id(user_id)
     if not user or not user.get("tg_id"):
         return
-
-    text = texts.RATE_CHANGED_NOTIFICATION.format(rate=rate)
-
-    try:
-        await bot.send_message(user["tg_id"], text)
-    except Exception as exc:
-        logger.warning(
-            "Failed to send rate change notification to %s: %s", user["tg_id"], exc
-        )
+    await _send(bot, user["tg_id"], texts.RATE_CHANGED_NOTIFICATION.format(rate=rate), what="rate change")
 
 
 async def notify_employee_schedule_changed(
@@ -68,20 +75,19 @@ async def notify_employee_schedule_changed(
     if not user or not user.get("tg_id"):
         return
 
-    day_names = {
-        **texts.WEEKDAYS_SHORT_TITLE,
-    }
-    days = ", ".join(day_names.get(x, str(x)) for x in sorted(weekdays)) or texts.DASH
-    text = (
-texts.SCHEDULE_CHANGED_NOTIFICATION.format(days=days, start_time=start_time, end_time=end_time)
-    )
+    days = ", ".join(texts.WEEKDAYS_SHORT_TITLE.get(x, str(x)) for x in sorted(weekdays)) or texts.DASH
+    text = texts.SCHEDULE_CHANGED_NOTIFICATION.format(days=days, start_time=start_time, end_time=end_time)
+    await _send(bot, user["tg_id"], text, what="schedule change")
 
-    try:
-        await bot.send_message(user["tg_id"], text)
-    except Exception as exc:
-        logger.warning(
-            "Failed to send schedule change notification to %s: %s", user["tg_id"], exc
-        )
+
+def _format_report_date(now: datetime) -> str:
+    return (
+        f"{now.strftime('%H:%M')} | "
+        f"{_WEEKDAY_NAMES_EN[now.weekday()]} "
+        f"{now.strftime('%d')} "
+        f"{_MONTH_NAMES_EN[now.month - 1]} "
+        f"{now.strftime('%Y')}"
+    )
 
 
 async def notify_new_report_recipients(
@@ -95,69 +101,26 @@ async def notify_new_report_recipients(
 ) -> int:
     del photo_file_id, report_id  # уведомление должно уходить только текстом
 
-    if not recipient_ids:
-        return 0
-
-    placeholders = ",".join(["%s"] * len(recipient_ids))
-    recipients = await fetch_all(
-        f"SELECT tg_id FROM users WHERE is_active=1 AND id IN ({placeholders})",
-        tuple(recipient_ids),
-    )
+    recipients = await users_repo.list_active_tg_ids(recipient_ids)
     if not recipients:
         return 0
 
-    now = now_local()
-
-    weekday_names = {
-        0: "Mon",
-        1: "Tue",
-        2: "Wed",
-        3: "Thu",
-        4: "Fri",
-        5: "Sat",
-        6: "Sun",
-    }
-    month_names = {
-        1: "January",
-        2: "February",
-        3: "March",
-        4: "April",
-        5: "May",
-        6: "June",
-        7: "July",
-        8: "August",
-        9: "September",
-        10: "October",
-        11: "November",
-        12: "December",
-    }
-
-    report_date = (
-        f"{now.strftime('%H:%M')} | "
-        f"{weekday_names[now.weekday()]} "
-        f"{now.strftime('%d')} "
-        f"{month_names[now.month]} "
-        f"{now.strftime('%Y')}"
-    )
-
-    text = (
-        texts.NEW_REPORT_NOTIFICATION.format(author_name=author_name, report_date=report_date, description=description or texts.NO_DESCRIPTION)
+    text = texts.NEW_REPORT_NOTIFICATION.format(
+        author_name=author_name,
+        report_date=_format_report_date(now_local()),
+        description=description or texts.NO_DESCRIPTION,
     )
 
     sent = 0
     for user in recipients:
-        try:
-            await bot.send_message(
-                user["tg_id"],
-                text,
-                parse_mode="HTML",
-            )
+        if await _send(bot, user["tg_id"], text, what="new report", parse_mode="HTML"):
             sent += 1
-        except Exception as exc:
-            logger.warning(
-                "Failed to send new report notification to %s: %s", user["tg_id"], exc
-            )
     return sent
+
+
+async def with_active_admin_ids(configured_ids: list[int]) -> list[int]:
+    """Получатели из настроек плюс все активные администраторы."""
+    return sorted(set(configured_ids) | set(await users_repo.list_active_admin_ids()))
 
 
 async def notify_shift_event_recipients(
@@ -168,34 +131,18 @@ async def notify_shift_event_recipients(
     event_at,
     duration_seconds: int | None = None,
 ) -> int:
-    recipient_ids = set(await get_shift_event_recipient_ids())
-    admin_rows = await fetch_all(
-        "SELECT id FROM users WHERE role='admin' AND is_active=1"
-    )
-    recipient_ids.update(int(row["id"]) for row in admin_rows if row.get("id") is not None)
-
-    if not recipient_ids:
-        return 0
-
-    placeholders = ",".join(["%s"] * len(recipient_ids))
-    recipients = await fetch_all(
-        f"SELECT tg_id FROM users WHERE is_active=1 AND role IN ('admin','employee','manager') AND tg_id IS NOT NULL AND id IN ({placeholders})",
-        tuple(sorted(recipient_ids)),
-    )
+    recipient_ids = await with_active_admin_ids(await get_shift_event_recipient_ids())
+    recipients = await users_repo.list_shift_event_tg_ids(recipient_ids)
     if not recipients:
         return 0
 
-    employee_name = user.get("full_name") or user.get("username") or str(user.get("tg_id"))
+    employee_name = display_name(user)
     event_at_text = event_at.strftime("%d.%m.%Y %H:%M")
 
     if event_type == "open":
-        text = (
-texts.SHIFT_EVENT_OPEN.format(employee_name=employee_name, event_at_text=event_at_text)
-        )
+        text = texts.SHIFT_EVENT_OPEN.format(employee_name=employee_name, event_at_text=event_at_text)
     elif event_type == "close":
-        text = (
-texts.SHIFT_EVENT_CLOSE.format(employee_name=employee_name, event_at_text=event_at_text)
-        )
+        text = texts.SHIFT_EVENT_CLOSE.format(employee_name=employee_name, event_at_text=event_at_text)
         if duration_seconds is not None:
             text += texts.SHIFT_EVENT_DURATION.format(duration=seconds_to_human(duration_seconds))
     else:
@@ -203,95 +150,44 @@ texts.SHIFT_EVENT_CLOSE.format(employee_name=employee_name, event_at_text=event_
 
     sent = 0
     for recipient in recipients:
-        try:
-            await bot.send_message(recipient["tg_id"], text)
+        if await _send(bot, recipient["tg_id"], text, what="shift event"):
             sent += 1
-        except Exception as exc:
-            logger.warning(
-                "Failed to send shift event notification to %s: %s",
-                recipient["tg_id"],
-                exc,
-            )
     return sent
 
 
-async def _was_schedule_reminder_sent(user_id: int, reminder_type: str, reminder_date: date) -> bool:
-    row = await fetch_one(
-        "SELECT id FROM schedule_notification_logs WHERE user_id=%s AND reminder_type=%s AND reminder_date=%s LIMIT 1",
-        (user_id, reminder_type, reminder_date),
-    )
-    return row is not None
-
-
-async def _mark_schedule_reminder_sent(user_id: int, reminder_type: str, reminder_date: date) -> None:
-    now_naive = now_local().replace(tzinfo=None)
-    await execute(
-        "INSERT INTO schedule_notification_logs (user_id, reminder_type, reminder_date, created_at) VALUES (%s, %s, %s, %s)",
-        (user_id, reminder_type, reminder_date, now_naive),
-    )
+async def _send_schedule_reminder_once(bot: Bot, row: dict, reminder_type: str, today, text: str) -> None:
+    if await reminders_repo.was_sent(row["user_id"], reminder_type, today):
+        return
+    await bot.send_message(row["tg_id"], text)
+    await reminders_repo.mark_sent(row["user_id"], reminder_type, today, now_naive())
 
 
 async def dispatch_schedule_shift_notifications(bot: Bot) -> None:
+    """Раз в минуту: напоминает открыть смену в начале графика и закрыть — в конце."""
     now = now_local()
     current_time = now.strftime("%H:%M")
     today = now.date()
     iso_weekday = now.isoweekday()
 
-    rows = await fetch_all(
-        """
-        SELECT
-            u.id AS user_id,
-            u.tg_id,
-            u.full_name,
-            s.weekdays_json,
-            s.start_time,
-            s.end_time
-        FROM users u
-        JOIN user_schedules s ON s.user_id = u.id AND s.is_active = 1
-        WHERE u.is_active = 1 AND u.role = 'employee' AND u.tg_id IS NOT NULL
-        """
-    )
-    if not rows:
-        return
-
-    for row in rows:
+    for row in await schedules_repo.list_active_employee_schedules():
         try:
             weekdays = row.get("weekdays_json") or "[]"
             if isinstance(weekdays, str):
-                import json
                 weekdays = json.loads(weekdays)
-
             if iso_weekday not in weekdays:
                 continue
 
-            user_id = row["user_id"]
-            tg_id = row["tg_id"]
             full_name = row.get("full_name") or texts.EMPLOYEE_FALLBACK
-            open_shift = await get_open_shift(user_id)
+            open_shift = await get_open_shift(row["user_id"])
 
-            if row.get("start_time") == current_time:
-                if open_shift is None and not await _was_schedule_reminder_sent(user_id, "open", today):
-                    await bot.send_message(
-                        tg_id,
-                        (
-                            texts.SCHEDULE_OPEN_REMINDER.format(full_name=full_name)
-                        ),
-                    )
-                    await _mark_schedule_reminder_sent(user_id, "open", today)
+            if row.get("start_time") == current_time and open_shift is None:
+                await _send_schedule_reminder_once(
+                    bot, row, "open", today, texts.SCHEDULE_OPEN_REMINDER.format(full_name=full_name)
+                )
 
-            if row.get("end_time") == current_time:
-                if open_shift is not None and not await _was_schedule_reminder_sent(user_id, "close", today):
-                    await bot.send_message(
-                        tg_id,
-                        (
-                            texts.SCHEDULE_CLOSE_REMINDER.format(full_name=full_name)
-                        ),
-                    )
-                    await _mark_schedule_reminder_sent(user_id, "close", today)
-
+            if row.get("end_time") == current_time and open_shift is not None:
+                await _send_schedule_reminder_once(
+                    bot, row, "close", today, texts.SCHEDULE_CLOSE_REMINDER.format(full_name=full_name)
+                )
         except Exception as exc:
-            logger.warning(
-                "Failed to process schedule reminder for user %s: %s",
-                row.get("user_id"),
-                exc,
-            )
+            logger.warning("Failed to process schedule reminder for user %s: %s", row.get("user_id"), exc)
