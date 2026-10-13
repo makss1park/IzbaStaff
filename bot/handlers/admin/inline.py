@@ -19,7 +19,9 @@ from bot.utils.dates import seconds_to_human
 
 router = Router(name="admin.inline")
 
-MAX_RESULTS = 50
+# Telegram отдаёт в inline-режиме не больше 50 результатов за раз; остальное
+# догружается при прокрутке по next_offset.
+PAGE_SIZE = 50
 _PLACEHOLDER_THUMB = "https://placehold.co/200x200"
 
 
@@ -35,11 +37,23 @@ def _fmt_dt(value, fmt: str = "%d.%m.%Y %H:%M", default: str = texts.UNKNOWN) ->
     return value.strftime(fmt) if value else default
 
 
+def _page_offset(query: InlineQuery) -> int:
+    try:
+        return max(0, int(query.offset or 0))
+    except ValueError:
+        return 0
+
+
 async def _answer(query: InlineQuery, results: list) -> None:
+    """Отдаёт одну страницу результатов; next_offset заставляет Telegram догрузить следующую."""
+    offset = _page_offset(query)
+    page = results[offset:offset + PAGE_SIZE]
+    has_more = offset + PAGE_SIZE < len(results)
     await query.answer(
-        results,
+        page,
         cache_time=1,
         is_personal=True,
+        next_offset=str(offset + PAGE_SIZE) if has_more else "",
         switch_pm_text=texts.INLINE_OPEN_BOT,
         switch_pm_parameter="start",
     )
@@ -57,7 +71,7 @@ async def _reports_results(search_q: str) -> list[InlineQueryResultArticle]:
         ]
 
     results = []
-    for report in reports[:MAX_RESULTS]:
+    for report in reports:
         author = report.get("full_name") or report.get("username") or str(report["user_id"])
         title = (report.get("description") or texts.NO_DESCRIPTION).strip()
         if len(title) > 60:
@@ -87,7 +101,7 @@ async def _active_shifts_results(search_q: str) -> list[InlineQueryResultArticle
         ]
 
     results = []
-    for index, item in enumerate(items[:MAX_RESULTS], start=1):
+    for index, item in enumerate(items, start=1):
         name = item.get("full_name") or item.get("username") or str(item.get("tg_id", "unknown"))
         description = texts.INLINE_ACTIVE_SHIFT_DESCRIPTION.format(opened_at=_fmt_dt(item.get("opened_at")))
         safe_id = item.get("id") or item.get("user_id") or item.get("tg_id") or index
@@ -115,7 +129,7 @@ async def _employee_shifts_results(user_id: int, search_q: str) -> list[InlineQu
         ]
 
     results = []
-    for shift in shifts[:MAX_RESULTS]:
+    for shift in shifts:
         opened_at = _fmt_dt(shift.get("opened_at"))
         duration = seconds_to_human(int(shift.get("duration_seconds", 0) or 0))
         results.append(

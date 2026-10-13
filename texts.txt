@@ -42,7 +42,7 @@ BTN_SHOW_PERIOD_INFO = "Показать информацию за текущи�
 BTN_CHANGE_INFO = "Изменить информацию"
 BTN_FINE = "Оштрафовать"
 BTN_RESET_HOURS = "Обнулить часы"
-BTN_SET_REPORTS_DAYS = "Настроить количество последних отчетов"
+BTN_SET_REPORTS_DAYS = "Настроить период последних отчетов (дни)"
 BTN_SET_REPORT_RECIPIENTS = "Отправлять новые отчеты сотрудникам"
 BTN_SET_SHIFT_EVENT_RECIPIENTS = "Отправлять информацию об открытии/закрытии смены"
 
