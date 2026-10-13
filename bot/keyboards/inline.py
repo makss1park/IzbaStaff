@@ -6,6 +6,12 @@ from bot import texts
 from bot.ui.navigation import back_to_main_menu, with_back_button
 
 
+def _with_fine_button(keyboard: InlineKeyboardMarkup) -> InlineKeyboardMarkup:
+    rows = [row[:] for row in keyboard.inline_keyboard]
+    rows.append([InlineKeyboardButton(text=texts.BTN_ASSIGN_FINE, callback_data="menu:fine")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 def main_menu_employee() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -40,12 +46,13 @@ def main_menu_manager() -> InlineKeyboardMarkup:
     )
 
 
-def main_menu_for_role(role: str | None) -> InlineKeyboardMarkup:
+def main_menu_for_role(role: str | None, can_assign_fines: bool = False) -> InlineKeyboardMarkup:
+    """Главное меню по роли. Админ штрафует через «Управление сотрудниками»; сотрудникам
+    с выданным доступом добавляется отдельная кнопка «Назначить штраф»."""
     if role == "admin":
         return main_menu_admin()
-    if role == "manager":
-        return main_menu_manager()
-    return main_menu_employee()
+    menu = main_menu_manager() if role == "manager" else main_menu_employee()
+    return _with_fine_button(menu) if can_assign_fines else menu
 
 
 def main_menu_admin() -> InlineKeyboardMarkup:
@@ -161,6 +168,15 @@ def employees_selection_keyboard(users: list[dict], selected_ids: set[int]) -> I
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+def grant_access_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=texts.BTN_ACCESS_FINES, callback_data="settings:access:fines")],
+            [InlineKeyboardButton(text=texts.BTN_MAIN_MENU, callback_data="menu:main_admin")],
+        ]
+    )
+
+
 def latest_reports_open_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -190,7 +206,8 @@ def settings_menu() -> InlineKeyboardMarkup:
                     text=texts.BTN_SET_SHIFT_EVENT_RECIPIENTS,
                     callback_data="settings:shift_event_recipients",
                 )
-            ]
+            ],
+            [InlineKeyboardButton(text=texts.BTN_GRANT_ACCESS, callback_data="settings:access")]
         ]
     )
 

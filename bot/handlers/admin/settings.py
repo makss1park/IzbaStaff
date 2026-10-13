@@ -7,8 +7,9 @@ from aiogram.types import CallbackQuery, Message
 
 from bot import texts
 from bot.handlers.admin.common import ensure_admin, send_admin_main_menu
-from bot.keyboards.inline import employees_selection_keyboard, settings_menu
+from bot.keyboards.inline import employees_selection_keyboard, grant_access_menu, settings_menu
 from bot.services.settings_service import (
+    get_fine_grantee_ids,
     get_new_report_recipient_ids,
     get_shift_event_recipient_ids,
     set_latest_reports_days,
@@ -107,4 +108,29 @@ async def settings_shift_event_recipients(callback: CallbackQuery, state: FSMCon
         mode="shift_event_recipients",
         current_ids=await get_shift_event_recipient_ids(),
         hint=texts.SHIFT_EVENT_RECIPIENTS_HINT,
+    )
+
+
+# =========================
+# ВЫДАТЬ ДОСТУП
+# =========================
+
+@router.callback_query(F.data == "settings:access")
+async def settings_grant_access(callback: CallbackQuery, is_admin: bool) -> None:
+    if not await ensure_admin(callback, is_admin):
+        return
+    await edit_or_send(callback, texts.GRANT_ACCESS_MENU, reply_markup=grant_access_menu())
+    await callback.answer()
+
+
+@router.callback_query(F.data == "settings:access:fines")
+async def settings_access_fines(callback: CallbackQuery, state: FSMContext, is_admin: bool) -> None:
+    if not await ensure_admin(callback, is_admin):
+        return
+    await _open_recipients_selection(
+        callback,
+        state,
+        mode="fine_grantees",
+        current_ids=await get_fine_grantee_ids(),
+        hint=texts.FINE_GRANTEES_HINT,
     )

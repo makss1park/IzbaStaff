@@ -50,3 +50,12 @@ async def get_shift_event_recipient_ids() -> list[int]:
 
 async def set_shift_event_recipient_ids(user_ids: list[int]) -> None:
     await settings_repo.set_value(settings_repo.SHIFT_EVENT_RECIPIENT_IDS, _format_id_list(user_ids), now_naive())
+
+
+async def get_fine_grantee_ids() -> list[int]:
+    """Сотрудники (не админы), которым выдан доступ к назначению штрафов."""
+    return parse_id_list(await settings_repo.get_value(settings_repo.FINE_GRANTEE_IDS))
+
+
+async def set_fine_grantee_ids(user_ids: list[int]) -> None:
+    await settings_repo.set_value(settings_repo.FINE_GRANTEE_IDS, _format_id_list(user_ids), now_naive())

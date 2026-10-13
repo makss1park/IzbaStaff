@@ -26,6 +26,7 @@ __all__ = [
     "notify_shift_event_recipients",
     "dispatch_schedule_shift_notifications",
     "with_active_admin_ids",
+    "notify_fine_access_changed",
 ]
 
 _WEEKDAY_NAMES_EN = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
@@ -191,3 +192,12 @@ async def dispatch_schedule_shift_notifications(bot: Bot) -> None:
                 )
         except Exception as exc:
             logger.warning("Failed to process schedule reminder for user %s: %s", row.get("user_id"), exc)
+
+
+async def notify_fine_access_changed(bot: Bot, *, granted_ids: set[int], revoked_ids: set[int]) -> None:
+    """Сообщает сотрудникам, что им выдали или отозвали доступ к назначению штрафов."""
+    for user_ids, text in ((granted_ids, texts.FINE_ACCESS_GRANTED_NOTIFICATION), (revoked_ids, texts.FINE_ACCESS_REVOKED_NOTIFICATION)):
+        for user_id in sorted(user_ids):
+            user = await get_user_by_id(user_id)
+            if user and user.get("tg_id"):
+                await _send(bot, user["tg_id"], text, what="fine access")
