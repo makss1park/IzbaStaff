@@ -2,71 +2,49 @@ from __future__ import annotations
 
 from typing import Any
 
-from bot.database import execute, fetch_all, fetch_one
-from bot.utils.dates import now_local
+from core.clock import now_naive
+from core.repositories import fines as fines_repo
+from core.repositories import payroll as payroll_repo
+from core.repositories import shifts as shifts_repo
+from core.repositories import users as users_repo
 
 
 async def ensure_open_period(user_id: int) -> dict[str, Any]:
-    period = await fetch_one(
-        "SELECT * FROM payroll_periods WHERE user_id=%s AND is_closed=0 ORDER BY id DESC LIMIT 1",
-        (user_id,),
-    )
+    """Текущий открытый зарплатный период сотрудника; создаёт его, если открытого нет."""
+    period = await payroll_repo.get_open_period(user_id)
     if period:
         return period
-    now = now_local().replace(tzinfo=None)
-    await execute(
-        "INSERT INTO payroll_periods (user_id, start_at, is_closed, created_at, updated_at) VALUES (%s, %s, 0, %s, %s)",
-        (user_id, now, now, now),
-    )
-    period = await fetch_one(
-        "SELECT * FROM payroll_periods WHERE user_id=%s AND is_closed=0 ORDER BY id DESC LIMIT 1",
-        (user_id,),
-    )
+    now = now_naive()
+    await payroll_repo.create_period(user_id, now, now)
+    period = await payroll_repo.get_open_period(user_id)
     assert period is not None
     return period
 
 
 async def get_current_period_stats(user_id: int) -> dict[str, Any]:
     period = await ensure_open_period(user_id)
-    shift_stats = await fetch_one(
-        """
-        SELECT COUNT(*) AS shift_count,
-               COALESCE(SUM(duration_seconds), 0) AS work_seconds,
-               COALESCE(SUM(CASE WHEN late_seconds > 0 THEN 1 ELSE 0 END), 0) AS late_count,
-               COALESCE(SUM(late_seconds), 0) AS late_seconds
-        FROM shifts
-        WHERE user_id=%s AND payroll_period_id=%s AND closed_at IS NOT NULL
-        """,
-        (user_id, period["id"]),
-    ) or {}
-    fine_stats = await fetch_one(
-        "SELECT COALESCE(SUM(amount), 0) AS fine_amount FROM fines WHERE user_id=%s AND payroll_period_id=%s",
-        (user_id, period["id"]),
-    ) or {}
-    user = await fetch_one("SELECT hourly_rate FROM users WHERE id=%s", (user_id,)) or {"hourly_rate": 0}
-    earned = (float(user["hourly_rate"]) * (int(shift_stats.get("work_seconds", 0)) / 3600.0)) - float(fine_stats.get("fine_amount", 0))
+    shift_stats = await shifts_repo.closed_stats_for_period(user_id, period["id"])
+    fine_amount = await fines_repo.total_for_period(user_id, period["id"])
+    hourly_rate = await users_repo.get_hourly_rate(user_id)
+
+    work_seconds = int(shift_stats.get("work_seconds", 0) or 0)
+    earned = hourly_rate * (work_seconds / 3600.0) - fine_amount
     return {
         "period_id": period["id"],
         "shift_count": int(shift_stats.get("shift_count", 0) or 0),
-        "work_seconds": int(shift_stats.get("work_seconds", 0) or 0),
+        "work_seconds": work_seconds,
         "late_count": int(shift_stats.get("late_count", 0) or 0),
         "late_seconds": int(shift_stats.get("late_seconds", 0) or 0),
-        "fine_amount": float(fine_stats.get("fine_amount", 0) or 0),
+        "fine_amount": fine_amount,
         "earned_amount": round(earned, 2),
     }
 
 
 async def close_current_period_and_open_new(user_id: int) -> None:
     period = await ensure_open_period(user_id)
-    now = now_local().replace(tzinfo=None)
-    await execute(
-        "UPDATE payroll_periods SET is_closed=1, end_at=%s, updated_at=%s WHERE id=%s",
-        (now, now, period["id"]),
-    )
-    await execute(
-        "INSERT INTO payroll_periods (user_id, start_at, is_closed, created_at, updated_at) VALUES (%s, %s, 0, %s, %s)",
-        (user_id, now, now, now),
-    )
+    now = now_naive()
+    await payroll_repo.close_period(period["id"], now, now)
+    await payroll_repo.create_period(user_id, now, now)
 
 
 async def bulk_close_periods(user_ids: list[int]) -> None:
@@ -85,25 +63,9 @@ async def get_period_stats_for_users(user_ids: list[int]) -> list[dict[str, Any]
 
 async def get_current_period_shift_list(user_id: int) -> list[dict[str, Any]]:
     period = await ensure_open_period(user_id)
-    return await fetch_all(
-        """
-        SELECT id, opened_at, closed_at, duration_seconds
-        FROM shifts
-        WHERE user_id=%s AND payroll_period_id=%s AND closed_at IS NOT NULL
-        ORDER BY opened_at DESC
-        """,
-        (user_id, period["id"]),
-    )
+    return await shifts_repo.list_closed_for_period(user_id, period["id"])
 
 
 async def get_current_period_fines(user_id: int) -> list[dict[str, Any]]:
     period = await ensure_open_period(user_id)
-    return await fetch_all(
-        """
-        SELECT id, amount, reason, created_at
-        FROM fines
-        WHERE user_id=%s AND payroll_period_id=%s
-        ORDER BY created_at DESC, id DESC
-        """,
-        (user_id, period["id"]),
-    )
+    return await fines_repo.list_for_user_period(user_id, period["id"])

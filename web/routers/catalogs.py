@@ -1,73 +1,26 @@
 from __future__ import annotations
 
-from pathlib import Path
-from urllib.parse import urlparse
-
 from fastapi import APIRouter, Query, Request
-from starlette.responses import Response
 
-from web.config import web_settings
+from core.repositories import catalogs as catalogs_repo
 from web.dependencies import require_login
 from web.routers.common import render
-from web.services.excel import build_workbook
-from bot.database import fetch_all
-from web.services.query import paginate_query, parse_page
+from web.services.excel import xlsx_response
+from web.services.files import catalog_photo_url, catalog_preview_url
+from web.services.query import parse_page
 
 router = APIRouter(prefix='/web/catalogs', tags=['catalogs'])
 PAGE_SIZE = 12
 
 
-def _build_catalog_public_url(filename: str) -> str:
-    prefix = web_settings.catalogs_url_prefix.rstrip('/') or '/catalogs'
-    base = (web_settings.reports_public_base_url or '').rstrip('/')
-    relative = f"{prefix}/{filename}"
-    if not base:
-        return relative
-
-    parsed = urlparse(base)
-    if parsed.path.rstrip('/') == prefix:
-        return f"{base}/{filename}"
-    return f"{base}{relative}"
-
-
-def _resolve_catalog_image_url(item: dict, *, local_key: str = 'preview_local_path', public_key: str = 'preview_public_url') -> str | None:
-    local_path = item.get(local_key)
-    if local_path:
-        file_name = Path(local_path).name
-        return f"/web/catalog-files/{file_name}"
-
-    public_url = item.get(public_key)
-    if public_url:
-        return public_url
-
-    return None
-
-
 async def _attach_catalog_photos(items: list[dict]) -> None:
     if not items:
         return
-
     catalog_ids = [int(item['id']) for item in items]
-    placeholders = ','.join(['%s'] * len(catalog_ids))
-    photos = await fetch_all(
-        f"""
-        SELECT id, catalog_id, photo_public_url, photo_local_path, created_at
-        FROM catalog_photos
-        WHERE catalog_id IN ({placeholders})
-        ORDER BY catalog_id ASC, id ASC
-        """,
-        tuple(catalog_ids),
-    )
-
     grouped: dict[int, list[dict]] = {catalog_id: [] for catalog_id in catalog_ids}
-    for photo in photos:
-        photo['image_url'] = _resolve_catalog_image_url(
-            photo,
-            local_key='photo_local_path',
-            public_key='photo_public_url',
-        )
+    for photo in await catalogs_repo.list_photos_for_catalogs(catalog_ids):
+        photo['image_url'] = catalog_photo_url(photo)
         grouped.setdefault(int(photo['catalog_id']), []).append(photo)
-
     for item in items:
         item['photos'] = grouped.get(int(item['id']), [])
 
@@ -82,38 +35,20 @@ async def catalogs_list(
     date_to: str = Query(''),
     export: str | None = Query(None),
 ):
-    clauses = ['1=1']
-    args: list = []
-    if query.strip():
-        like = f"%{query.strip()}%"
-        clauses.append('(c.title LIKE %s OR c.tags_text LIKE %s OR u.full_name LIKE %s OR u.username LIKE %s)')
-        args.extend([like, like, like, like])
-    if date_from.strip():
-        clauses.append('DATE(c.created_at) >= %s')
-        args.append(date_from.strip())
-    if date_to.strip():
-        clauses.append('DATE(c.created_at) <= %s')
-        args.append(date_to.strip())
-    where_sql = ' AND '.join(clauses)
-    base_query = f'''
-        SELECT c.*, u.full_name, u.username,
-               (SELECT cp.photo_public_url FROM catalog_photos cp WHERE cp.catalog_id = c.id ORDER BY cp.id ASC LIMIT 1) AS preview_public_url,
-               (SELECT cp.photo_local_path FROM catalog_photos cp WHERE cp.catalog_id = c.id ORDER BY cp.id ASC LIMIT 1) AS preview_local_path,
-               (SELECT COUNT(*) FROM catalog_photos cp WHERE cp.catalog_id = c.id) AS photos_count
-        FROM catalogs c
-        JOIN users u ON u.id = c.user_id
-        WHERE {where_sql}
-        ORDER BY c.created_at DESC
-    '''
-    count_query = f'''SELECT COUNT(*) AS cnt FROM catalogs c JOIN users u ON u.id=c.user_id WHERE {where_sql}'''
-    data = await paginate_query(base_query, count_query, tuple(args), parse_page(page), PAGE_SIZE)
+    data = await catalogs_repo.search_page(
+        query=query, date_from=date_from, date_to=date_to, page=parse_page(page), page_size=PAGE_SIZE
+    )
     for item in data['items']:
-        item['preview_image_url'] = _resolve_catalog_image_url(item)
+        item['preview_image_url'] = catalog_preview_url(item)
     await _attach_catalog_photos(data['items'])
+
     if export == 'xlsx':
-        rows = [[i['id'], i.get('title') or '', i.get('tags_text') or '', i.get('full_name') or i.get('username') or '', i['created_at'], i.get('photos_count') or 0] for i in data['items']]
-        content = build_workbook('Catalogs', ['ID', 'Название', 'Теги', 'Создатель', 'Дата', 'Фото'], rows)
-        return Response(content=content, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', headers={'Content-Disposition': 'attachment; filename=catalogs.xlsx'})
+        rows = [
+            [i['id'], i.get('title') or '', i.get('tags_text') or '', i.get('full_name') or i.get('username') or '', i['created_at'], i.get('photos_count') or 0]
+            for i in data['items']
+        ]
+        return xlsx_response('catalogs.xlsx', 'Catalogs', ['ID', 'Название', 'Теги', 'Создатель', 'Дата', 'Фото'], rows)
+
     return render(request, 'catalogs.html', {
         'data': data,
         'filters': {'query': query, 'date_from': date_from, 'date_to': date_to},

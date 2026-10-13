@@ -236,7 +236,7 @@ async def menu_active_workers(callback: CallbackQuery, is_admin: bool, state: FS
         await callback.answer(texts.NO_ACCESS, show_alert=True)
         return
 
-    from bot.handlers.admin import _active_workers_open_keyboard
+    from bot.handlers.admin import active_workers_open_keyboard
     from bot.services.shifts import get_active_shifts
 
     if callback.message is not None:
@@ -256,6 +256,6 @@ async def menu_active_workers(callback: CallbackQuery, is_admin: bool, state: FS
         callback,
         asset_name="active_employee",
         caption=texts.ACTIVE_SHIFTS_SCREEN,
-        reply_markup=with_back_button(_active_workers_open_keyboard(), True),
+        reply_markup=with_back_button(active_workers_open_keyboard(), True),
     )
     await callback.answer()

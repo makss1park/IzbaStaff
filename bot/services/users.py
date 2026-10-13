@@ -5,11 +5,17 @@ from typing import Any
 
 from bot import texts
 from bot.config import settings
-from bot.database import execute, fetch_all, fetch_one
-from bot.utils.dates import now_local
+from bot.services.schedules import get_schedules_map
+from core.clock import now_naive
+from core.repositories import schedules as schedules_repo
+from core.repositories import users as users_repo
+
+# Поля профиля, которые админ может менять через бота.
+_EDITABLE_FIELDS = ("full_name", "phone", "hourly_rate", "role")
 
 
-def _parse_weekdays(value: str | None) -> list[int]:
+def parse_weekdays(value: str | None) -> list[int]:
+    """Дни недели из JSON-списка ``[1, 2, 3]`` или строки ``1,2,3``; мусор пропускается."""
     if not value:
         return []
 
@@ -19,248 +25,115 @@ def _parse_weekdays(value: str | None) -> list[int]:
 
     try:
         parsed = json.loads(raw)
-        if isinstance(parsed, list):
-            result: list[int] = []
-            for item in parsed:
-                try:
-                    result.append(int(item))
-                except Exception:
-                    continue
-            return result
-    except Exception:
-        pass
+    except ValueError:
+        parsed = None
 
+    items = parsed if isinstance(parsed, list) else [part.strip() for part in raw.split(",")]
     result: list[int] = []
-    for part in raw.split(","):
-        part = part.strip()
-        if not part:
-            continue
+    for item in items:
         try:
-            result.append(int(part))
-        except Exception:
+            result.append(int(item))
+        except (TypeError, ValueError):
             continue
     return result
 
 
-def _weekday_name(day: int) -> str:
-    mapping = {
-        1: texts.WEEKDAYS_SHORT_TITLE[1],
-        2: texts.WEEKDAYS_SHORT_TITLE[2],
-        3: texts.WEEKDAYS_SHORT_TITLE[3],
-        4: texts.WEEKDAYS_SHORT_TITLE[4],
-        5: texts.WEEKDAYS_SHORT_TITLE[5],
-        6: texts.WEEKDAYS_SHORT_TITLE[6],
-        7: texts.WEEKDAYS_SHORT_TITLE[7],
-    }
-    return mapping.get(day, str(day))
-
-
-def _build_schedule_display(schedule: dict[str, Any] | None) -> str:
+def build_schedule_display(schedule: dict[str, Any] | None) -> str:
     if not schedule:
         return texts.SCHEDULE_NOT_SET
 
-    weekdays = _parse_weekdays(schedule.get("weekdays_json"))
+    weekdays = parse_weekdays(schedule.get("weekdays_json"))
     if weekdays:
-        days_display = ", ".join(_weekday_name(day) for day in weekdays)
+        days_display = ", ".join(texts.WEEKDAYS_SHORT_TITLE.get(day, str(day)) for day in weekdays)
     else:
         days_display = texts.SCHEDULE_DAYS_NOT_SET
 
     start_time = schedule.get("start_time") or texts.DASH
     end_time = schedule.get("end_time") or texts.DASH
-
     return f"{days_display}; {start_time}-{end_time}"
 
 
-async def _get_user_core_by_tg_id(tg_id: int) -> dict[str, Any] | None:
-    return await fetch_one("SELECT * FROM users WHERE tg_id=%s", (tg_id,))
+def display_name(user: dict[str, Any]) -> str:
+    """Как показывать сотрудника в сообщениях бота: ФИО → username → tg_id."""
+    return user.get("full_name") or user.get("username") or str(user.get("tg_id"))
+
+
+async def _with_schedule(user: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not user:
+        return None
+    user["schedule_display"] = build_schedule_display(await schedules_repo.get_active(user["id"]))
+    return user
 
 
 async def get_user_by_tg_id(tg_id: int) -> dict[str, Any] | None:
-    user = await _get_user_core_by_tg_id(tg_id)
-    if not user:
-        return None
-
-    schedule = await fetch_one(
-        "SELECT * FROM user_schedules WHERE user_id=%s AND is_active=1 ORDER BY id DESC LIMIT 1",
-        (user["id"],),
-    )
-    user["schedule_display"] = _build_schedule_display(schedule)
-    return user
+    return await _with_schedule(await users_repo.get_by_tg_id(tg_id))
 
 
 async def get_user_by_id(user_id: int) -> dict[str, Any] | None:
-    user = await fetch_one("SELECT * FROM users WHERE id=%s", (user_id,))
-    if not user:
-        return None
-
-    schedule = await fetch_one(
-        "SELECT * FROM user_schedules WHERE user_id=%s AND is_active=1 ORDER BY id DESC LIMIT 1",
-        (user_id,),
-    )
-    user["schedule_display"] = _build_schedule_display(schedule)
-    return user
+    return await _with_schedule(await users_repo.get_by_id(user_id))
 
 
 async def ensure_user(tg_id: int, username: str | None, full_name: str | None) -> dict[str, Any]:
-    existing = await _get_user_core_by_tg_id(tg_id)
-    role = "admin" if tg_id in settings.admin_id_set else "employee"
-    now = now_local().replace(tzinfo=None)
+    """Находит пользователя по tg_id или регистрирует нового; синхронизирует username и роль админа."""
+    existing = await users_repo.get_by_tg_id(tg_id)
+    is_configured_admin = tg_id in settings.admin_id_set
+    now = now_naive()
 
-    if existing:
-        update_fields: list[str] = []
-        args: list[Any] = []
+    if not existing:
+        role = "admin" if is_configured_admin else "employee"
+        await users_repo.create(tg_id, username, full_name, role, now)
+        user = await users_repo.get_by_tg_id(tg_id)
+        assert user is not None
+        return user
 
-        if existing.get("username") != username:
-            update_fields.append("username=%s")
-            args.append(username)
+    changes: dict[str, Any] = {}
+    if existing.get("username") != username:
+        changes["username"] = username
+    # Не перезаписываем вручную изменённое ФИО данными из Telegram:
+    # автообновление допустимо, только если ФИО в базе ещё пустое.
+    if full_name and not existing.get("full_name"):
+        changes["full_name"] = full_name
+    # Не сбрасываем менеджера обратно в сотрудника при /start.
+    # Автоматически повышаем до администратора только тех, кто указан в ADMIN_IDS.
+    if is_configured_admin and existing.get("role") != "admin":
+        changes["role"] = "admin"
 
-        # Не перезаписываем вручную изменённое ФИО данными из Telegram.
-        # Автообновление имени из Telegram допустимо только если ФИО в базе ещё пустое.
-        if full_name and not existing.get("full_name"):
-            update_fields.append("full_name=%s")
-            args.append(full_name)
+    if changes:
+        await users_repo.update_by_tg_id(tg_id, changes, now)
+        existing.update(changes)
+        existing["updated_at"] = now
 
-        # Не сбрасываем менеджера обратно в сотрудника при /start.
-        # Автоматически повышаем до администратора только тех, кто указан в ADMIN_IDS.
-        if tg_id in settings.admin_id_set and existing.get("role") != "admin":
-            update_fields.append("role=%s")
-            args.append("admin")
-
-        if update_fields:
-            update_fields.append("updated_at=%s")
-            args.append(now)
-            args.append(tg_id)
-
-            await execute(
-                f"UPDATE users SET {', '.join(update_fields)} WHERE tg_id=%s",
-                tuple(args),
-            )
-
-            existing["updated_at"] = now
-            if "username=%s" in update_fields:
-                existing["username"] = username
-            if "full_name=%s" in update_fields and full_name:
-                existing["full_name"] = full_name
-            if "role=%s" in update_fields:
-                existing["role"] = role
-
-        return existing
-
-    await execute(
-        """
-        INSERT INTO users (tg_id, username, full_name, role, created_at, updated_at)
-        VALUES (%s, %s, %s, %s, %s, %s)
-        """,
-        (tg_id, username, full_name, role, now, now),
-    )
-
-    user = await _get_user_core_by_tg_id(tg_id)
-    assert user is not None
-    return user
+    return existing
 
 
 async def update_full_name(user_id: int, full_name: str) -> None:
-    await execute(
-        "UPDATE users SET full_name=%s, updated_at=%s WHERE id=%s",
-        (full_name, now_local().replace(tzinfo=None), user_id),
-    )
+    await users_repo.update_by_id(user_id, {"full_name": full_name}, now_naive())
 
 
 async def update_phone(user_id: int, phone: str) -> None:
-    await execute(
-        "UPDATE users SET phone=%s, updated_at=%s WHERE id=%s",
-        (phone, now_local().replace(tzinfo=None), user_id),
-    )
+    await users_repo.update_by_id(user_id, {"phone": phone}, now_naive())
 
 
 async def update_rate(user_ids: list[int], rate: float) -> None:
-    if not user_ids:
-        return
-    placeholders = ",".join(["%s"] * len(user_ids))
-    await execute(
-        f"UPDATE users SET hourly_rate=%s, updated_at=%s WHERE id IN ({placeholders})",
-        tuple([rate, now_local().replace(tzinfo=None), *user_ids]),
-    )
+    await users_repo.update_rate(user_ids, rate, now_naive())
 
 
 async def update_user(user_id: int, changes: dict[str, Any]) -> None:
-    if not changes:
-        return
-
-    allowed_fields = {
-        "full_name": "full_name",
-        "phone": "phone",
-        "hourly_rate": "hourly_rate",
-        "role": "role",
-    }
-
-    update_fields: list[str] = []
-    args: list[Any] = []
-    for key, value in changes.items():
-        column = allowed_fields.get(key)
-        if not column:
-            continue
-        update_fields.append(f"{column}=%s")
-        args.append(value)
-
-    if not update_fields:
-        return
-
-    update_fields.append("updated_at=%s")
-    args.append(now_local().replace(tzinfo=None))
-    args.append(user_id)
-
-    await execute(
-        f"UPDATE users SET {', '.join(update_fields)} WHERE id=%s",
-        tuple(args),
-    )
+    allowed = {key: value for key, value in changes.items() if key in _EDITABLE_FIELDS}
+    await users_repo.update_by_id(user_id, allowed, now_naive())
 
 
 async def delete_users(user_ids: list[int]) -> None:
-    """Soft-delete employees/managers without removing historical data."""
-    if not user_ids:
-        return
-
-    placeholders = ",".join(["%s"] * len(user_ids))
-    await execute(
-        f"""
-        UPDATE users
-        SET is_active=0, updated_at=%s
-        WHERE role IN ('employee','manager') AND id IN ({placeholders})
-        """,
-        tuple([now_local().replace(tzinfo=None), *user_ids]),
-    )
+    """Мягкое удаление сотрудников/менеджеров без потери истории."""
+    await users_repo.soft_delete(user_ids, now_naive())
 
 
 async def list_all_users() -> list[dict[str, Any]]:
-    users = await fetch_all(
-        "SELECT * FROM users WHERE is_active=1 ORDER BY COALESCE(full_name, username, tg_id)"
-    )
-
+    users = await users_repo.list_active()
     if not users:
         return users
-
-    user_ids = [user["id"] for user in users]
-    placeholders = ",".join(["%s"] * len(user_ids))
-    schedules = await fetch_all(
-        f"""
-        SELECT *
-        FROM user_schedules
-        WHERE is_active=1 AND user_id IN ({placeholders})
-        ORDER BY id DESC
-        """,
-        tuple(user_ids),
-    )
-
-    schedules_map: dict[int, dict[str, Any]] = {}
-    for schedule in schedules:
-        if schedule["user_id"] not in schedules_map:
-            schedules_map[schedule["user_id"]] = schedule
-
-    for user in users:
-        user["schedule_display"] = _build_schedule_display(schedules_map.get(user["id"]))
-
-    return users
+    schedules = await get_schedules_map([user["id"] for user in users])
+    return await decorate_users_with_schedule(users, schedules)
 
 
 async def decorate_users_with_schedule(
@@ -268,12 +141,9 @@ async def decorate_users_with_schedule(
     schedules: dict[int, dict[str, Any]],
 ) -> list[dict[str, Any]]:
     for user in users:
-        schedule = schedules.get(user["id"])
-        user["schedule_display"] = _build_schedule_display(schedule)
+        user["schedule_display"] = build_schedule_display(schedules.get(user["id"]))
     return users
 
 
-async def get_admin_users():
-    return await fetch_all(
-        "SELECT tg_id, full_name, username FROM users WHERE role='admin' AND is_active=1"
-    )
+async def get_admin_users() -> list[dict[str, Any]]:
+    return await users_repo.list_active_admins()

@@ -4,10 +4,9 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from bot import texts
-from bot.database import fetch_all
 from bot.keyboards.inline import graph_menu, profile_menu
 from bot.ui.navigation import back_to_main_menu, with_back_button
-from bot.services.notifications import notify_shift_event_recipients
+from bot.services.notifications import notify_admins_about_late, notify_shift_event_recipients
 from bot.services.payroll import get_current_period_fines, get_current_period_shift_list, get_current_period_stats
 from bot.services.schedules import get_schedules_map
 from bot.services.shifts import close_shift, open_shift
@@ -26,23 +25,9 @@ router = Router()
 
 
 async def _notify_admins_about_late(message: Message | None, db_user: dict, late_seconds: int) -> None:
-    if late_seconds <= 0 or message is None:
+    if message is None:
         return
-
-    admins = await fetch_all(
-        "SELECT tg_id FROM users WHERE role='admin' AND is_active=1"
-    )
-    late_minutes = max(1, late_seconds // 60) if late_seconds > 0 else 0
-    employee_name = db_user.get("full_name") or db_user.get("username") or str(db_user["tg_id"])
-
-    text = texts.LATE_NOTIFICATION.format(employee_name=employee_name, late_minutes=late_minutes)
-
-    for admin in admins:
-        try:
-            await message.bot.send_message(admin["tg_id"], text)
-        except Exception:
-            pass
-
+    await notify_admins_about_late(message.bot, db_user, late_seconds)
 
 
 async def _perform_shift_open(message: Message, db_user: dict, **kwargs) -> None:

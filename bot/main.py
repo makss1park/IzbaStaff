@@ -10,7 +10,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from bot.commands import setup_default_commands
 from bot.config import settings
-from bot.database import acquire, close_pool, init_pool
+from core.db import acquire, close_pool, init_pool
 from bot.handlers import admin, catalogs, commands, employee, reports, start
 from bot.logger import setup_logging
 from bot.middlewares.access import AccessMiddleware, UserContextMiddleware
