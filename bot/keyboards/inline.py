@@ -47,8 +47,8 @@ def main_menu_manager() -> InlineKeyboardMarkup:
 
 
 def main_menu_for_role(role: str | None, can_assign_fines: bool = False) -> InlineKeyboardMarkup:
-    """Главное меню по роли. Админ штрафует через «Управление сотрудниками»; сотрудникам
-    с выданным доступом добавляется отдельная кнопка «Назначить штраф»."""
+    """Главное меню по роли. Админ штрафует через «Управление сотрудниками»; менеджерам и
+    сотрудникам с выданным доступом добавляется отдельная кнопка «Назначить штраф»."""
     if role == "admin":
         return main_menu_admin()
     menu = main_menu_manager() if role == "manager" else main_menu_employee()

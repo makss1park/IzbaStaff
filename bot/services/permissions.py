@@ -7,10 +7,10 @@ from bot.services.settings_service import get_fine_grantee_ids
 
 
 async def can_assign_fines(user: dict[str, Any] | None) -> bool:
-    """Админ может всегда; сотрудник или менеджер — если ему выдан доступ."""
+    """Админ и менеджер могут всегда; сотрудник — если ему выдан доступ."""
     if not user or not user.get("is_active", 1):
         return False
-    if user.get("role") == "admin":
+    if user.get("role") in {"admin", "manager"}:
         return True
     return int(user["id"]) in await get_fine_grantee_ids()
 
