@@ -44,7 +44,7 @@ async def create(user_id: int, weekdays_json: str, start_time: str, end_time: st
 
 
 async def list_active_employee_schedules() -> list[dict[str, Any]]:
-    """Графики активных сотрудников с Telegram — для напоминаний об открытии/закрытии смены."""
+    """Графики активных сотрудников и менеджеров с Telegram — для напоминаний об открытии/закрытии смены."""
     return await fetch_all(
         """
         SELECT
@@ -56,7 +56,7 @@ async def list_active_employee_schedules() -> list[dict[str, Any]]:
             s.end_time
         FROM users u
         JOIN user_schedules s ON s.user_id = u.id AND s.is_active = 1
-        WHERE u.is_active = 1 AND u.role = 'employee' AND u.tg_id IS NOT NULL
+        WHERE u.is_active = 1 AND u.role IN ('employee', 'manager') AND u.tg_id IS NOT NULL
         """
     )
 

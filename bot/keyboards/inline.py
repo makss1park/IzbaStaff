@@ -33,6 +33,7 @@ def main_menu_manager() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text=texts.BTN_PROFILE, callback_data="menu:profile")],
+            [InlineKeyboardButton(text=texts.BTN_GRAPH, callback_data="menu:graph")],
             [InlineKeyboardButton(text=texts.BTN_QUICK_REPORT, callback_data="menu:quick_report")],
             [InlineKeyboardButton(text=texts.BTN_LAST_REPORTS, switch_inline_query_current_chat="#reports")],
             [
