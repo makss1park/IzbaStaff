@@ -69,9 +69,6 @@ async def _perform_shift_close(message: Message, db_user: dict, **kwargs) -> Non
 
 @router.message(F.text == texts.MENU_GRAPH)
 async def graph(message: Message, db_user: dict) -> None:
-    if db_user.get("role") == "manager":
-        await message.answer(texts.NO_ACCESS, reply_markup=back_to_main_menu(False))
-        return
     await send_photo_screen(
         message,
         asset_name="graphic",
@@ -83,10 +80,6 @@ async def graph(message: Message, db_user: dict) -> None:
 @router.callback_query(F.data == "shift:open")
 async def shift_open(callback: CallbackQuery, state: FSMContext, db_user: dict) -> None:
     await state.clear()
-    if db_user.get("role") == "manager":
-        await edit_or_send(callback, texts.NO_ACCESS, reply_markup=back_to_main_menu(False))
-        await callback.answer()
-        return
     try:
         shift = await open_shift(db_user["id"])
         dt = shift["opened_at"].strftime("%d.%m.%Y %H:%M")
@@ -117,10 +110,6 @@ async def shift_open(callback: CallbackQuery, state: FSMContext, db_user: dict) 
 @router.callback_query(F.data == "shift:close")
 async def shift_close_request(callback: CallbackQuery, state: FSMContext, db_user: dict) -> None:
     await state.clear()
-    if db_user.get("role") == "manager":
-        await edit_or_send(callback, texts.NO_ACCESS, reply_markup=back_to_main_menu(False))
-        await callback.answer()
-        return
     try:
         shift = await close_shift(db_user["id"])
         dt = shift["closed_at"].strftime("%d.%m.%Y %H:%M")
@@ -149,10 +138,6 @@ async def shift_close_request(callback: CallbackQuery, state: FSMContext, db_use
 
 @router.callback_query(F.data == "shift:my")
 async def my_shifts(callback: CallbackQuery, db_user: dict) -> None:
-    if db_user.get("role") == "manager":
-        await edit_or_send(callback, texts.NO_ACCESS, reply_markup=back_to_main_menu(False))
-        await callback.answer()
-        return
     stats = await get_current_period_stats(db_user["id"])
     shifts = await get_current_period_shift_list(db_user["id"])
     fines = await get_current_period_fines(db_user["id"])
